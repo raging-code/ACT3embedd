@@ -31,25 +31,41 @@
   <!-- Main grid: feed | log -->
   <main class="grid">
 
-    <!-- Left: live feed panel -->
+    <!-- Left: live feed on top, captured-snapshot gallery below -->
     <section class="feed-panel">
-      <div class="feed-frame" id="feedFrame">
-        <img id="feedImg" alt="Most recent capture">
-        <div class="feed-empty" id="feedEmpty">
+
+      <!-- Live camera stream -->
+      <div class="feed-frame" id="liveFrame">
+        <img id="liveImg" alt="Live camera feed" src="/video_feed">
+        <div class="feed-empty" id="liveEmpty">
           <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
             <circle cx="20" cy="20" r="18" stroke="currentColor" stroke-width="1.4"/>
             <circle cx="20" cy="20" r="6" stroke="currentColor" stroke-width="1.4"/>
             <path d="M2 20h6M32 20h6M20 2v6M20 32v6" stroke="currentColor" stroke-width="1.4"/>
           </svg>
-          <p>Awaiting first capture</p>
+          <p>Camera not connected</p>
         </div>
-        <div class="feed-tag" id="feedTag">no signal yet</div>
+        <div class="feed-tag live-tag" id="liveTag">
+          <span class="live-dot"></span>LIVE
+        </div>
       </div>
       <div class="feed-caption">
-        <span id="feedTimestamp">—</span>
+        <span>Live camera feed</span>
         <span class="feed-caption-sep">·</span>
-        <span id="feedFile">—</span>
+        <span id="liveResolution">webcam</span>
       </div>
+
+      <!-- Captured snapshots, triggered by motion -->
+      <div class="gallery">
+        <div class="gallery-head">
+          <span>Motion captures</span>
+          <span class="log-head-count" id="galleryCount">0</span>
+        </div>
+        <div class="gallery-strip" id="galleryStrip">
+          <p class="gallery-empty" id="galleryEmpty">Snapshots taken on motion will appear here.</p>
+        </div>
+      </div>
+
     </section>
 
     <!-- Right: telemetry + log -->

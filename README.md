@@ -1,8 +1,9 @@
 # Perimeter — PIR Motion Watch (Webcam Edition)
 
 A motion-triggered capture system for the Raspberry Pi: a PIR sensor
-watches for movement, a USB webcam takes the picture, and a small web
-dashboard shows what's happening in real time from any device on your
+watches for movement, a USB webcam streams a live view at all times,
+and takes a snapshot whenever motion is detected. A web dashboard
+shows the live feed and the snapshot history from any device on your
 network.
 
 This is the webcam version of the Figure 3.1 setup — same PIR wiring,
@@ -60,11 +61,15 @@ http://<raspberry-pi-ip-address>:5000
 
 ## 4. Using the dashboard
 
-- **Live panel** — shows the most recent capture, with a timestamp and
-  filename underneath.
+- **Live feed** — a continuous webcam stream at the top of the page,
+  always on regardless of motion.
+- **Motion captures** — a scrollable strip below the live feed showing
+  every snapshot taken when motion was detected, most recent first.
 - **ARMED / DISARMED toggle** — top right. While disarmed, motion is
-  ignored and nothing is captured.
-- **Event log** — every motion trigger, most recent first.
+  ignored and nothing is captured (the live feed keeps running either
+  way).
+- **Event log** — every motion trigger, most recent first, in the side
+  panel.
 - **Module status** — shows whether the PIR sensor and webcam
   initialised correctly.
 

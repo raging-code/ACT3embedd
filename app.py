@@ -3,9 +3,9 @@ Motion-Triggered Capture System
 --------------------------------
 PIR motion sensor (Raspberry Pi GPIO) + USB webcam (OpenCV) + Flask web dashboard.
 
-When the PIR sensor detects motion, a frame is grabbed from the webcam,
-saved to disk, and logged. The web dashboard polls a small JSON API for
-live status and the event history, and can show the most recent capture.
+The webcam is streamed live to the dashboard (MJPEG) at all times. When the
+PIR sensor detects motion, a frame is additionally grabbed and saved to disk
+as a snapshot, and logged in the event history/gallery below the live feed.
 
 Run on the Raspberry Pi:
     python3 app.py
@@ -75,6 +75,8 @@ event_log = deque(maxlen=EVENT_HISTORY_LIMIT)
 
 camera = None
 camera_lock = threading.Lock()
+latest_frame = None          # most recent raw frame, shared between stream + capture
+latest_frame_lock = threading.Lock()
 
 
 def init_camera():
@@ -90,20 +92,25 @@ def init_camera():
     camera = cam if ok else None
 
 
-def capture_frame():
-    """Grab a frame from the webcam and save it to disk. Returns the filename."""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"motion_{timestamp}.jpg"
-    filepath = os.path.join(CAPTURE_DIR, filename)
+def _simulated_frame(label="LIVE"):
+    import numpy as np
+    frame = (np.random.rand(480, 640, 3) * 40).astype("uint8")
+    ts = datetime.now().strftime("%H:%M:%S")
+    cv2.putText(frame, f"SIMULATED {label} {ts}", (30, 240),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (100, 200, 255), 2)
+    return frame
 
+
+def grab_frame():
+    """Read one frame from the webcam (or generate a fake one in SIMULATE mode)
+    and cache it as the latest frame. Thread-safe: only one caller reads the
+    camera at a time, shared between the live-stream generator and captures."""
+    global latest_frame
     if SIMULATE:
-        # Write a tiny placeholder image so the dashboard has something to show.
-        import numpy as np
-        frame = (np.random.rand(480, 640, 3) * 40).astype("uint8")
-        cv2.putText(frame, f"SIMULATED {timestamp}", (30, 240),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (100, 200, 255), 2)
-        cv2.imwrite(filepath, frame)
-        return filename
+        frame = _simulated_frame()
+        with latest_frame_lock:
+            latest_frame = frame
+        return frame
 
     with camera_lock:
         if camera is None:
@@ -111,8 +118,48 @@ def capture_frame():
         ret, frame = camera.read()
         if not ret:
             return None
+    with latest_frame_lock:
+        latest_frame = frame
+    return frame
+
+
+def capture_frame():
+    """Grab a frame from the webcam and save it to disk. Returns the filename."""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"motion_{timestamp}.jpg"
+    filepath = os.path.join(CAPTURE_DIR, filename)
+
+    if SIMULATE:
+        frame = _simulated_frame(label="CAPTURE")
         cv2.imwrite(filepath, frame)
+        return filename
+
+    frame = grab_frame()
+    if frame is None:
+        return None
+    cv2.imwrite(filepath, frame)
     return filename
+
+
+def mjpeg_generator():
+    """Yields a continuous multipart JPEG stream for <img src="/video_feed">."""
+    boundary = b"--frame"
+    while True:
+        frame = grab_frame()
+        if frame is None:
+            time.sleep(0.5)
+            continue
+        ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        if not ok:
+            continue
+        chunk = (
+            boundary + b"\r\n"
+            b"Content-Type: image/jpeg\r\n"
+            b"Content-Length: " + str(len(buf)).encode() + b"\r\n\r\n" +
+            buf.tobytes() + b"\r\n"
+        )
+        yield chunk
+        time.sleep(1 / 15)  # ~15 fps is plenty for a monitoring feed and keeps the Pi's CPU load low
 
 
 # --------------------------------------------------------------------------
@@ -208,6 +255,26 @@ def api_disarm():
 @app.route("/captures/<path:filename>")
 def serve_capture(filename):
     return send_from_directory(CAPTURE_DIR, filename)
+
+
+@app.route("/video_feed")
+def video_feed():
+    return Response(
+        mjpeg_generator(),
+        mimetype="multipart/x-mixed-replace; boundary=frame",
+    )
+
+
+@app.route("/api/gallery")
+def api_gallery():
+    """Returns the most recent captured snapshots, newest first."""
+    with state_lock:
+        camera_ok = system_state["camera_ok"]
+    files = sorted(
+        (f for f in os.listdir(CAPTURE_DIR) if f.lower().endswith((".jpg", ".jpeg", ".png"))),
+        reverse=True,
+    )[:30]
+    return jsonify({"files": files, "camera_ok": camera_ok})
 
 
 if __name__ == "__main__":

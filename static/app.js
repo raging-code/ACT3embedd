@@ -8,11 +8,11 @@ const el = {
   pulseDot: document.getElementById("pulse-dot"),
   armToggle: document.getElementById("armToggle"),
 
-  feedFrame: document.getElementById("feedFrame"),
-  feedImg: document.getElementById("feedImg"),
-  feedTag: document.getElementById("feedTag"),
-  feedTimestamp: document.getElementById("feedTimestamp"),
-  feedFile: document.getElementById("feedFile"),
+  liveFrame: document.getElementById("liveFrame"),
+  liveImg: document.getElementById("liveImg"),
+
+  galleryStrip: document.getElementById("galleryStrip"),
+  galleryCount: document.getElementById("galleryCount"),
 
   statTotal: document.getElementById("statTotal"),
   statUptime: document.getElementById("statUptime"),
@@ -27,7 +27,17 @@ const el = {
 };
 
 let lastRenderedFile = null;
+let lastGallerySignature = "";
 let startedAt = null;
+
+// Live stream: mark the frame as "has-image" once the MJPEG stream actually
+// loads, and fall back to the empty state if it errors out (e.g. no camera).
+el.liveImg.addEventListener("load", () => {
+  el.liveFrame.classList.add("has-image");
+});
+el.liveImg.addEventListener("error", () => {
+  el.liveFrame.classList.remove("has-image");
+});
 
 function tickClock() {
   const now = new Date();
@@ -101,18 +111,11 @@ async function poll() {
     setModule(el.modSensorState, data.sensor_ok, "reading", "offline");
     setModule(el.modCameraState, data.camera_ok, "ready", "offline");
 
-    // feed tag
-    el.feedTag.textContent = data.motion_detected ? "motion — capturing" : "idle";
-    el.feedTag.classList.toggle("live", !!data.motion_detected);
-
-    // feed image
+    // refresh the gallery whenever a new capture has landed
     if (data.last_capture_file && data.last_capture_file !== lastRenderedFile) {
       lastRenderedFile = data.last_capture_file;
-      el.feedImg.src = `/captures/${data.last_capture_file}?t=${Date.now()}`;
-      el.feedFrame.classList.add("has-image");
+      pollGallery();
     }
-    el.feedTimestamp.textContent = fmtTime(data.last_motion_at);
-    el.feedFile.textContent = data.last_capture_file || "—";
 
     // log
     renderLog(data.events);
@@ -121,6 +124,44 @@ async function poll() {
     el.footStatus.textContent = "connected";
   } catch (err) {
     el.footStatus.textContent = "connection lost — retrying…";
+  }
+}
+
+function renderGallery(files) {
+  const signature = files.join(",");
+  if (signature === lastGallerySignature) return; // avoid needless re-render/flicker
+  lastGallerySignature = signature;
+
+  el.galleryCount.textContent = files.length;
+
+  if (!files.length) {
+    el.galleryStrip.innerHTML =
+      '<p class="gallery-empty" id="galleryEmpty">Snapshots taken on motion will appear here.</p>';
+    return;
+  }
+
+  el.galleryStrip.innerHTML = files
+    .map((filename) => {
+      // filenames look like motion_20260918_025309.jpg — pull a readable time out of it
+      const match = filename.match(/(\d{2})(\d{2})(\d{2})\.\w+$/);
+      const timeLabel = match ? `${match[1]}:${match[2]}:${match[3]}` : "";
+      return `
+        <div class="gallery-shot" title="${filename}">
+          <img src="/captures/${filename}" alt="Motion capture ${filename}" loading="lazy">
+          <span class="gallery-shot-time">${timeLabel}</span>
+        </div>`;
+    })
+    .join("");
+}
+
+async function pollGallery() {
+  try {
+    const res = await fetch("/api/gallery", { cache: "no-store" });
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    const data = await res.json();
+    renderGallery(data.files || []);
+  } catch (err) {
+    /* leave the existing gallery in place on a transient failure */
   }
 }
 
@@ -136,4 +177,6 @@ el.armToggle.addEventListener("click", async () => {
 });
 
 poll();
+pollGallery();
 setInterval(poll, POLL_MS);
+setInterval(pollGallery, POLL_MS * 4); // gallery changes less often than status
