@@ -11,17 +11,10 @@
 </head>
 <body>
 
-<!-- ambient background blobs — purely decorative, sit behind everything -->
-<div class="blob blob-a"></div>
-<div class="blob blob-b"></div>
-<div class="blob blob-c"></div>
-<div class="blob blob-d"></div>
-<div class="blob blob-e"></div>
-
 <div class="console">
 
   <!-- Header strip -->
-  <header class="bar glass">
+  <header class="bar">
     <div class="bar-id">
       <span class="dot" id="pulse-dot"></span>
       <span class="bar-name">PERIMETER</span>
@@ -42,7 +35,7 @@
     <section class="feed-panel">
 
       <!-- Live camera stream -->
-      <div class="feed-frame glass" id="liveFrame">
+      <div class="feed-frame" id="liveFrame">
         <img id="liveImg" alt="Live camera feed" src="/video_feed">
         <div class="feed-empty" id="liveEmpty">
           <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
@@ -63,7 +56,7 @@
       </div>
 
       <!-- Captured snapshots, triggered by motion -->
-      <div class="gallery glass">
+      <div class="gallery">
         <div class="gallery-head">
           <span>Motion captures</span>
           <span class="log-head-count" id="galleryCount">0</span>
@@ -79,28 +72,28 @@
     <aside class="side">
 
       <div class="stat-row">
-        <div class="stat glass">
+        <div class="stat">
           <span class="stat-value" id="statTotal">0</span>
           <span class="stat-label">events logged</span>
         </div>
-        <div class="stat glass">
+        <div class="stat">
           <span class="stat-value" id="statUptime">0m</span>
           <span class="stat-label">watch time</span>
         </div>
       </div>
 
       <div class="module-row">
-        <div class="module glass" id="modSensor">
+        <div class="module" id="modSensor">
           <span class="module-name">PIR sensor</span>
           <span class="module-state" id="modSensorState">checking</span>
         </div>
-        <div class="module glass" id="modCamera">
+        <div class="module" id="modCamera">
           <span class="module-name">Webcam</span>
           <span class="module-state" id="modCameraState">checking</span>
         </div>
       </div>
 
-      <div class="log glass">
+      <div class="log">
         <div class="log-head">
           <span>Event log</span>
           <span class="log-head-count" id="logCount">0</span>
