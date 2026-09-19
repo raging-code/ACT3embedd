@@ -26,8 +26,8 @@
   --radius-s: 10px;
   --radius-m: 18px;
 
-  --mono: 'IBM Plex Mono', ui-monospace, monospace;
-  --grot: 'Space Grotesk', system-ui, sans-serif;
+  --mono: 'Geist Mono', ui-monospace, monospace;
+  --grot: 'Outfit', system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -172,14 +172,17 @@ body {
 }
 
 .bar-name {
-  font-weight: 700;
-  font-size: 16px;
-  letter-spacing: 0.01em;
+  font-weight: 800;
+  font-size: 19px;
+  letter-spacing: -0.02em;
 }
 
 .bar-sub {
   font-family: var(--mono);
-  font-size: 12px;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--text-faint);
 }
 
@@ -193,6 +196,7 @@ body {
 
 .bar-clock {
   font-family: var(--mono);
+  font-weight: 600;
   font-size: 13px;
   color: var(--text-dim);
   letter-spacing: 0.03em;
@@ -200,9 +204,9 @@ body {
 
 .arm-toggle {
   font-family: var(--grot);
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0.04em;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.02em;
   color: #fff;
   background: linear-gradient(155deg, rgba(111,227,190,0.85), rgba(95,176,240,0.55));
   backdrop-filter: blur(12px) saturate(1.6);
@@ -361,7 +365,7 @@ body {
   padding: 13px 16px;
   border-bottom: 1px solid var(--edge-soft);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 800;
 }
 
 .gallery-strip {
@@ -455,15 +459,18 @@ body {
 
 .stat-value {
   font-family: var(--grot);
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 800;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   color: var(--text);
   line-height: 1;
 }
 
 .stat-label {
-  font-size: 12px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: var(--text-dim);
 }
 
@@ -483,14 +490,17 @@ body {
 .module > * { position: relative; z-index: 1; }
 
 .module-name {
-  font-size: 12px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: var(--text-dim);
 }
 
 .module-state {
   font-family: var(--mono);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 700;
   color: var(--text-faint);
 }
 .module-state.ok { color: var(--ok); }
@@ -515,12 +525,13 @@ body {
   padding: 13px 16px;
   border-bottom: 1px solid var(--edge-soft);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 800;
 }
 
 .log-head-count {
   font-family: var(--mono);
   font-size: 12px;
+  font-weight: 700;
   color: var(--signal);
   background: var(--signal-dim);
   border-radius: 20px;
@@ -550,12 +561,14 @@ body {
 .entry-time {
   font-family: var(--mono);
   font-size: 12px;
+  font-weight: 700;
   color: var(--signal);
   flex-shrink: 0;
   width: 68px;
 }
 
 .entry-desc {
+  font-weight: 600;
   color: var(--text-dim);
   overflow: hidden;
   text-overflow: ellipsis;
