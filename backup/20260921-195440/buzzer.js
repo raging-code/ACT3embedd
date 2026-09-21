@@ -1,29 +1,7 @@
 /* Perimeter — Buzzer + Graph (Fig. 3.3): dashboard logic
-   Polls /api/status every second and updates the console in place.
-
-   Perf notes (2026-09-21 optimization pass):
-   - The event log and the sensor-readings chart now only re-render when
-     the underlying data actually changed (signature check), matching
-     the recordings gallery's existing dedupe pattern. Previously both
-     rebuilt their full innerHTML (a whole SVG path re-stringified, in
-     the chart's case) every single poll tick even when nothing changed.
-   - /api/status and /api/readings were two independently-scheduled
-     1-second timers, each with its own fetch/parse/render cycle drifting
-     against each other. They're now a single tick that fires both in
-     the same frame, halving timer overhead and avoiding staggered
-     re-renders.
-   - Polling pauses while the tab is hidden/backgrounded (Page
-     Visibility API) and does one immediate catch-up poll the moment the
-     tab becomes visible again.
-   - A failing connection now backs off (1s -> up to 8s) instead of
-     hammering the server every second while offline; success resets it
-     back to the normal 1s cadence immediately.
-   - Fetches use an AbortController so a slow/hung request from a
-     previous tick can't pile up behind a new one after a tab-visibility
-     resume. */
+   Polls /api/status every second and updates the console in place. */
 
 const POLL_MS = 1000;
-const POLL_MS_MAX = 8000;
 
 const el = {
   clock: document.getElementById("clock"),
@@ -54,12 +32,6 @@ const el = {
 
 let lastRenderedRecording = null;
 let lastRecordingSignature = "";
-let lastLogSignature = "";
-let lastReadingsSignature = "";
-let pollTimer = null;
-let currentPollMs = POLL_MS;
-let statusAbort = null;
-let readingsAbort = null;
 
 function tickClock() {
   const now = new Date();
@@ -90,12 +62,6 @@ function setModule(stateEl, ok, okLabel, failLabel) {
 }
 
 function renderLog(events) {
-  const signature = events && events.length
-    ? events.map((e) => `${e.timestamp}|${e.file || ""}`).join(",")
-    : "";
-  if (signature === lastLogSignature) return; // nothing changed -- skip the rebuild
-  lastLogSignature = signature;
-
   if (!events || events.length === 0) {
     el.logList.innerHTML =
       '<li class="log-empty">No motion recorded yet. The log fills in here the moment the sensor trips.</li>';
@@ -110,24 +76,9 @@ function renderLog(events) {
     .join("");
 }
 
-function scheduleNextPoll(ms) {
-  if (pollTimer) clearTimeout(pollTimer);
-  pollTimer = setTimeout(poll, ms);
-}
-
 async function poll() {
-  if (document.hidden) {
-    // Don't fetch while the tab is backgrounded; resume is handled by the
-    // visibilitychange listener below.
-    return;
-  }
-
-  if (statusAbort) statusAbort.abort();
-  statusAbort = new AbortController();
-
-  let ok = true;
   try {
-    const res = await fetch("/api/status", { cache: "no-store", signal: statusAbort.signal });
+    const res = await fetch("/api/status", { cache: "no-store" });
     if (!res.ok) throw new Error(`status ${res.status}`);
     const data = await res.json();
 
@@ -169,21 +120,8 @@ async function poll() {
 
     el.footStatus.textContent = "connected";
   } catch (err) {
-    ok = ok && err.name === "AbortError";
-    if (err.name !== "AbortError") {
-      el.footStatus.textContent = "connection lost — retrying…";
-    }
+    el.footStatus.textContent = "connection lost — retrying…";
   }
-
-  // Same tick: readings share the cadence instead of drifting on their own timer.
-  await pollReadings();
-
-  if (ok) {
-    currentPollMs = POLL_MS; // connection is healthy -- back to full speed
-  } else {
-    currentPollMs = Math.min(currentPollMs * 2, POLL_MS_MAX); // back off while offline
-  }
-  scheduleNextPoll(currentPollMs);
 }
 
 // --------------------------------------------------------------------------
@@ -247,23 +185,13 @@ function renderReadingsChart(readings) {
 }
 
 async function pollReadings() {
-  if (readingsAbort) readingsAbort.abort();
-  readingsAbort = new AbortController();
   try {
-    const res = await fetch("/api/readings", { cache: "no-store", signal: readingsAbort.signal });
+    const res = await fetch("/api/readings", { cache: "no-store" });
     if (!res.ok) throw new Error(`status ${res.status}`);
     const data = await res.json();
     const readings = data.readings || [];
     el.readingsCount.textContent = readings.length;
-
-    // Skip the SVG rebuild (path re-stringified + reparsed) when nothing changed.
-    const signature = readings.length
-      ? `${readings.length}|${readings[readings.length - 1].t}|${readings[readings.length - 1].motion}`
-      : "";
-    if (signature !== lastReadingsSignature) {
-      lastReadingsSignature = signature;
-      renderReadingsChart(readings);
-    }
+    renderReadingsChart(readings);
   } catch (err) {
     /* leave the existing chart in place on a transient failure */
   }
@@ -334,18 +262,9 @@ el.buzzerTestBtn.addEventListener("click", async () => {
   setTimeout(() => { el.buzzerTestBtn.disabled = false; }, 1600);
 });
 
-// Pause polling while the tab is hidden/backgrounded; catch up immediately
-// on return instead of waiting out whatever interval was mid-flight.
-document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) {
-    currentPollMs = POLL_MS;
-    scheduleNextPoll(0);
-  }
-});
-
-let recordingsTimer = setInterval(() => {
-  if (!document.hidden) pollRecordings();
-}, POLL_MS * 4);
-
 poll();
+pollReadings();
 pollRecordings();
+setInterval(poll, POLL_MS);
+setInterval(pollReadings, POLL_MS);
+setInterval(pollRecordings, POLL_MS * 4);
