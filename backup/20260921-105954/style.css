@@ -774,48 +774,51 @@ body {
 /* ---------- menu page (activity chooser) ---------- */
 
 .menu-console {
-  max-width: 720px;
+  max-width: 900px;
   justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  padding-top: 0;
-  padding-bottom: 0;
 }
 
 .menu-intro {
   text-align: center;
-  margin: 0 0 28px;
+  margin: 32px 0 28px;
   position: relative;
   z-index: 1;
 }
 
 .menu-title {
   font-family: var(--grot);
-  font-size: 26px;
+  font-size: 30px;
   font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--text);
+  margin: 0 0 8px;
+}
+
+.menu-subtitle {
+  font-size: 14px;
+  color: var(--text-dim);
   margin: 0;
+  max-width: 480px;
+  margin-inline: auto;
 }
 
 .menu-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  width: 100%;
+  gap: 18px;
+  flex: 1;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 720px) {
   .menu-grid { grid-template-columns: 1fr; }
 }
 
 .menu-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 8px;
-  padding: 22px 20px;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 28px 26px;
   text-decoration: none;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
@@ -824,21 +827,22 @@ body {
   transform: translateY(-3px);
 }
 
-.icon-c {
-  width: 40px;
-  height: 40px;
+.menu-card-icon {
+  width: 52px;
+  height: 52px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 2px;
-}
-.icon-c svg {
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+  border-radius: 14px;
+  color: var(--signal);
+  background: var(--signal-dim);
+  border: 1px solid rgba(95,176,240,0.3);
+  margin-bottom: 4px;
 }
 
 .menu-card-tag {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -847,23 +851,23 @@ body {
 
 .menu-card-title {
   font-family: var(--grot);
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 800;
   letter-spacing: -0.01em;
   color: var(--text);
 }
 
 .menu-card-desc {
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 13.5px;
+  line-height: 1.55;
   color: var(--text-dim);
   margin: 0;
 }
 
 .menu-card-cta {
-  margin-top: 4px;
-  padding-top: 8px;
-  font-size: 12px;
+  margin-top: auto;
+  padding-top: 10px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--signal);
 }
