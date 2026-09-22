@@ -128,7 +128,7 @@ async function poll() {
   statusAbort = new AbortController();
 
   try {
-    const res = await fetch("/api/status?page=camera", { cache: "no-store", signal: statusAbort.signal });
+    const res = await fetch("/api/status", { cache: "no-store", signal: statusAbort.signal });
     if (!res.ok) throw new Error(`status ${res.status}`);
     const data = await res.json();
 
@@ -236,14 +236,6 @@ function renderGalleryAll() {
   el.galleryAllList.querySelectorAll(".gallery-all-row").forEach((row) => {
     row.addEventListener("click", () => openGalleryPop(row.dataset.filename));
   });
-}
-
-// .gallery-all-pop has the same fixed+inset:0 vs. backdrop-filter
-// containing-block issue as .mg-pop in graph.js -- it lives inside
-// .gallery.glass, so it rendered squashed into that card instead of
-// truly fullscreen/centered over the page. Re-parent it onto <body>.
-if (el.galleryAllPop && el.galleryAllPop.parentElement !== document.body) {
-  document.body.appendChild(el.galleryAllPop);
 }
 
 if (el.galleryViewAllBtn) {

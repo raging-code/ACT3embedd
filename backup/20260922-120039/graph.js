@@ -49,18 +49,6 @@
     const popTitle = root.querySelector(".mg-pop-title");
     const popX = root.querySelector(".mg-pop-x");
 
-    // .mg-pop is authored as position:fixed + inset:0 so it's fullscreen
-    // and centered over the whole page with a blurred backdrop. But its
-    // ancestor .motion-graph carries the .glass recipe, which sets
-    // backdrop-filter -- and backdrop-filter (like transform/filter)
-    // creates a new containing block for fixed-position descendants, so
-    // inset:0 was resolving against the graph card's box instead of the
-    // viewport. Re-parenting the popup onto <body> restores true
-    // viewport-relative fullscreen/centered/blurred behavior.
-    if (pop && pop.parentElement !== document.body) {
-      document.body.appendChild(pop);
-    }
-
     let events = [];      // [{t, ts, file_image, file_video}] — t = seconds since local midnight
     let viewStart = 0;
     let viewLen = DAY;
