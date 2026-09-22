@@ -53,23 +53,15 @@ os.makedirs(RECORDING_DIR, exist_ok=True)
 # --------------------------------------------------------------------------
 
 GPIO_AVAILABLE = False
-pir_sensor = None
-buzzer_device = None
 if not SIMULATE:
     try:
-        # gpiozero (lgpio backend) instead of RPi.GPIO: RPi.GPIO only
-        # talks to the classic BCM283x GPIO peripheral and does not
-        # support the Raspberry Pi 5's RP1 I/O controller -- GPIO.setup()
-        # raises there even though the import succeeds. gpiozero picks
-        # the right backend for whichever Pi this runs on.
-        # queue_len/threshold match the known-working standalone PIR
-        # test script: 5 consistent readings before the state flips,
-        # smoothing out a noisy sensor.
-        from gpiozero import MotionSensor, DigitalOutputDevice
-        pir_sensor = MotionSensor(PIR_PIN, queue_len=5, threshold=0.6)
-        buzzer_device = DigitalOutputDevice(BUZZER_PIN, initial_value=False)
+        import RPi.GPIO as GPIO
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(PIR_PIN, GPIO.IN)
+        GPIO.setup(BUZZER_PIN, GPIO.OUT)
+        GPIO.output(BUZZER_PIN, GPIO.LOW)
         GPIO_AVAILABLE = True
-    except Exception:
+    except (ImportError, RuntimeError):
         GPIO_AVAILABLE = False
 
 # --------------------------------------------------------------------------
@@ -287,11 +279,11 @@ def sound_buzzer(seconds=BUZZER_ON_SECONDS):
     def _run():
         with state_lock:
             system_state["buzzer_active"] = True
-        if GPIO_AVAILABLE and buzzer_device is not None:
-            buzzer_device.on()
+        if GPIO_AVAILABLE:
+            GPIO.output(BUZZER_PIN, GPIO.HIGH)
         time.sleep(seconds)
-        if GPIO_AVAILABLE and buzzer_device is not None:
-            buzzer_device.off()
+        if GPIO_AVAILABLE:
+            GPIO.output(BUZZER_PIN, GPIO.LOW)
         with state_lock:
             system_state["buzzer_active"] = False
 
@@ -308,9 +300,9 @@ def read_pir():
         import random
         time.sleep(1)
         return random.random() < 0.05
-    if not GPIO_AVAILABLE or pir_sensor is None:
+    if not GPIO_AVAILABLE:
         return False
-    return bool(pir_sensor.motion_detected)
+    return bool(GPIO.input(PIR_PIN))
 
 
 def sensor_loop():
