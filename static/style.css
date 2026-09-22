@@ -46,15 +46,15 @@ body {
   overflow-x: hidden;
   background:
     linear-gradient(160deg,
-      #234F3C 0%,
-      #1B3F30 14%,
-      #143226 28%,
-      #0E2620 42%,
-      #081A16 55%,
-      #0D2119 68%,
-      #163527 80%,
-      #1D4636 92%,
-      #234F3C 100%);
+      #2F6B4F 0%,
+      #245840 14%,
+      #1B4732 28%,
+      #143A28 42%,
+      #0F2E1F 55%,
+      #17402D 68%,
+      #205339 80%,
+      #2A6349 92%,
+      #2F6B4F 100%);
   background-attachment: fixed;
 }
 
@@ -75,15 +75,15 @@ body {
   filter: blur(10px);
 }
 .blob-a { width: 560px; height: 560px; top: -180px; left: -140px;
-  background: radial-gradient(circle, #4C4F55 0%, transparent 72%); opacity: 0.8; }
+  background: radial-gradient(circle, #3F7A5A 0%, transparent 72%); opacity: 0.8; }
 .blob-b { width: 620px; height: 620px; bottom: -220px; right: -160px;
-  background: radial-gradient(circle, #3A3D42 0%, transparent 70%); opacity: 0.85; }
+  background: radial-gradient(circle, #2E5D44 0%, transparent 70%); opacity: 0.85; }
 .blob-c { width: 460px; height: 460px; top: 30%; left: 55%;
-  background: radial-gradient(circle, #55585F 0%, transparent 72%); opacity: 0.55; }
+  background: radial-gradient(circle, #4E8E68 0%, transparent 72%); opacity: 0.55; }
 .blob-d { width: 380px; height: 380px; top: 5%; right: 8%;
-  background: radial-gradient(circle, #2A2C30 0%, transparent 72%); opacity: 0.6; }
+  background: radial-gradient(circle, #1C3F2C 0%, transparent 72%); opacity: 0.6; }
 .blob-e { width: 420px; height: 420px; bottom: 10%; left: 8%;
-  background: radial-gradient(circle, #45474D 0%, transparent 72%); opacity: 0.5; }
+  background: radial-gradient(circle, #366B4C 0%, transparent 72%); opacity: 0.5; }
 
 /* ---------- shell ---------- */
 
@@ -112,8 +112,8 @@ body {
      MJPEG feed) and on every other .glass panel on the page at the same
      time. 14px reads visually almost identically as frosted glass but is
      dramatically cheaper for the RPi's GPU to recompute continuously. */
-  backdrop-filter: blur(7px) saturate(1.25);
-  -webkit-backdrop-filter: blur(7px) saturate(1.25);
+  backdrop-filter: blur(5px) saturate(1.12);
+  -webkit-backdrop-filter: blur(5px) saturate(1.12);
   transform: translateZ(0);
   border: 1px solid var(--edge-soft);
   border-radius: var(--radius-m);
@@ -215,8 +215,8 @@ body {
   letter-spacing: 0.02em;
   color: #fff;
   background: linear-gradient(155deg, rgba(111,227,190,0.85), rgba(95,176,240,0.55));
-  backdrop-filter: blur(6px) saturate(1.2);
-  -webkit-backdrop-filter: blur(6px) saturate(1.2);
+  backdrop-filter: blur(5px) saturate(1.15);
+  -webkit-backdrop-filter: blur(5px) saturate(1.15);
   border: 1px solid rgba(255,255,255,0.3);
   border-radius: var(--radius-s);
   padding: 9px 16px;
@@ -330,8 +330,8 @@ body {
   border: 1px solid var(--edge-soft);
   border-radius: 20px;
   padding: 5px 11px 5px 9px;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
 }
 
 .live-tag {
@@ -521,8 +521,8 @@ body {
   align-items: center;
   justify-content: center;
   background: rgba(8, 9, 11, 0.55);
-  backdrop-filter: blur(10px) saturate(1.1);
-  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  backdrop-filter: blur(8px) saturate(1.08);
+  -webkit-backdrop-filter: blur(8px) saturate(1.08);
   padding: 3vh 3vw;
 }
 .gallery-all-pop.open { display: flex; animation: mg-fade 0.16s ease-out; }
@@ -906,8 +906,8 @@ body {
   align-items: center;
   justify-content: center;
   background: rgba(8, 9, 11, 0.55);
-  backdrop-filter: blur(10px) saturate(1.1);
-  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  backdrop-filter: blur(8px) saturate(1.08);
+  -webkit-backdrop-filter: blur(8px) saturate(1.08);
   padding: 3vh 3vw;
 }
 
