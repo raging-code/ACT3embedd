@@ -32,13 +32,9 @@ BUZZER_ON_SECONDS = 1.5     # how long the buzzer sounds per motion trigger
 CAMERA_INDEX = 0            # 0 = first USB webcam; try 1 or 2 if it's not found
 CAPTURE_DIR = os.path.join(os.path.dirname(__file__), "captures")
 RECORDING_DIR = os.path.join(os.path.dirname(__file__), "recordings")
-RECORDING_SECONDS = 10      # MINIMUM length of the Fig. 3.3 motion-triggered video
-                             # clip; if motion is still active once this is reached,
-                             # recording keeps extending until motion actually clears
+RECORDING_SECONDS = 5       # length of the Fig. 3.3 motion-triggered video clip
 RECORDING_FPS = 15          # matches the live stream's frame rate
-COOLDOWN_SECONDS = 5        # unused by the sensor loop now -- captures are edge-
-                             # triggered (once per idle->motion transition) instead of
-                             # cooldown-gated; kept in case other code references it
+COOLDOWN_SECONDS = 5        # minimum time between two triggered captures
 EVENT_HISTORY_LIMIT = 100   # how many past events to keep in memory
 READING_HISTORY_LIMIT = 120 # how many sensor-reading points to keep for the graph
 SENSOR_WARMUP_SECONDS = 2   # PIR sensors need a moment to settle after power-on
@@ -169,28 +165,15 @@ def record_clip(seconds=RECORDING_SECONDS, fps=RECORDING_FPS):
     filename = f"motion_{timestamp}.mp4"
     filepath = os.path.join(RECORDING_DIR, filename)
 
-    def _motion_still_active():
-        with state_lock:
-            return bool(system_state.get("motion_detected"))
-
     if SIMULATE:
         # Write a short simulated clip so the gallery/player has something
-        # real to show even without physical hardware. Runs at least
-        # `seconds` (the minimum), then keeps going for as long as motion
-        # is still active, matching the real-camera path below.
+        # real to show even without physical hardware.
         writer = cv2.VideoWriter(
             filepath, cv2.VideoWriter_fourcc(*"mp4v"), fps, (640, 480)
         )
-        frame_interval = 1 / fps
-        start = time.time()
-        frame_count = 0
-        while True:
+        for _ in range(int(seconds * fps)):
             writer.write(_simulated_frame(label="RECORDING"))
-            frame_count += 1
-            time.sleep(frame_interval)
-            elapsed = time.time() - start
-            if elapsed >= seconds and not _motion_still_active():
-                break
+            time.sleep(1 / fps)
         writer.release()
         return filename
 
@@ -208,18 +191,14 @@ def record_clip(seconds=RECORDING_SECONDS, fps=RECORDING_FPS):
     writer.write(probe)
 
     frame_interval = 1 / fps
-    clip_start = time.time()
-    while True:
-        loop_start = time.time()
+    end_at = time.time() + seconds
+    while time.time() < end_at:
+        start = time.time()
         frame = grab_frame()
         if frame is not None:
             writer.write(frame)
-        elapsed_frame = time.time() - loop_start
-        time.sleep(max(0.0, frame_interval - elapsed_frame))
-
-        elapsed_total = time.time() - clip_start
-        if elapsed_total >= seconds and not _motion_still_active():
-            break
+        elapsed = time.time() - start
+        time.sleep(max(0.0, frame_interval - elapsed))
 
     writer.release()
     return filename
@@ -311,10 +290,7 @@ def sensor_loop():
     time.sleep(SENSOR_WARMUP_SECONDS)
     print("Motion detection active.")
 
-    motion_active = False  # tracks whether we're inside an ongoing motion
-                            # streak, so capture only fires on the idle->motion
-                            # edge and everything else during the streak is
-                            # discarded, per Fig. 3.1/3.2's one-shot rule
+    last_trigger = 0.0
 
     while True:
         try:
@@ -322,50 +298,37 @@ def sensor_loop():
             with state_lock:
                 armed = system_state["armed"]
 
-            is_motion_now = bool(motion and armed)
-
             # Record a reading point on every poll so Fig. 3.3's graph has a
             # continuous timeline, not just spikes at trigger moments.
             reading_log.append({
                 "t": datetime.now().isoformat(timespec="seconds"),
-                "motion": is_motion_now,
+                "motion": bool(motion and armed),
             })
 
-            if is_motion_now and not motion_active:
-                # Rising edge: idle -> motion. Fire exactly one capture for
-                # this streak. Everything else while motion stays on is
-                # discarded until it drops back to idle (motion_active=False)
-                # and trips again.
-                motion_active = True
-                filename = capture_frame()
-                sound_buzzer()
-                record_clip_async()
-                event = {
-                    "timestamp": datetime.now().isoformat(timespec="seconds"),
-                    "file": filename,
-                }
-                with state_lock:
-                    system_state["motion_detected"] = True
-                    system_state["last_motion_at"] = event["timestamp"]
-                    system_state["total_events"] += 1
-                    if filename:
-                        system_state["last_capture_file"] = filename
-                event_log.appendleft(event)
-                print(f"[{event['timestamp']}] Motion detected -> {filename} (buzzer sounded, recording >= {RECORDING_SECONDS}s clip)")
-            elif is_motion_now and motion_active:
-                # Motion continues from the same streak -- keep
-                # motion_detected true (record_clip() reads this to decide
-                # whether to keep extending past the minimum length) but
-                # discard it as a new event.
-                with state_lock:
-                    system_state["motion_detected"] = True
+            if motion and armed:
+                now = time.time()
+                if now - last_trigger >= COOLDOWN_SECONDS:
+                    last_trigger = now
+                    filename = capture_frame()
+                    sound_buzzer()
+                    record_clip_async()
+                    event = {
+                        "timestamp": datetime.now().isoformat(timespec="seconds"),
+                        "file": filename,
+                    }
+                    with state_lock:
+                        system_state["motion_detected"] = True
+                        system_state["last_motion_at"] = event["timestamp"]
+                        system_state["total_events"] += 1
+                        if filename:
+                            system_state["last_capture_file"] = filename
+                    event_log.appendleft(event)
+                    print(f"[{event['timestamp']}] Motion detected -> {filename} (buzzer sounded, recording {RECORDING_SECONDS}s clip)")
             else:
-                # Idle: streak (if any) has ended, ready to trigger again.
-                motion_active = False
                 with state_lock:
                     system_state["motion_detected"] = False
 
-            time.sleep(1)  # poll the PIR sensor once per second
+            time.sleep(0.15)
         except Exception as exc:  # keep the loop alive even if a single read fails
             print(f"Sensor loop error: {exc}")
             time.sleep(1)
