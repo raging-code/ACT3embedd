@@ -44,6 +44,10 @@ const el = {
   buzzerTestBtn: document.getElementById("buzzerTestBtn"),
   buzzerHint: document.getElementById("buzzerHint"),
 
+  readingsChart: document.getElementById("readingsChart"),
+  readingsCount: document.getElementById("readingsCount"),
+  chartEmpty: document.getElementById("chartEmpty"),
+
   recordingStrip: document.getElementById("recordingStrip"),
   recordingCount: document.getElementById("recordingCount"),
 };
@@ -51,9 +55,11 @@ const el = {
 let lastRenderedRecording = null;
 let lastRecordingSignature = "";
 let lastLogSignature = "";
+let lastReadingsSignature = "";
 let pollTimer = null;
 let currentPollMs = POLL_MS;
 let statusAbort = null;
+let readingsAbort = null;
 
 function tickClock() {
   const now = new Date();
@@ -169,6 +175,9 @@ async function poll() {
     }
   }
 
+  // Same tick: readings share the cadence instead of drifting on their own timer.
+  await pollReadings();
+
   if (ok) {
     currentPollMs = POLL_MS; // connection is healthy -- back to full speed
   } else {
@@ -178,8 +187,90 @@ async function poll() {
 }
 
 // --------------------------------------------------------------------------
-// Motion-triggered video recordings gallery (unified motion graph now lives
-// in static/graph.js, driven by /api/events, not this file)
+// Sensor readings chart (plain inline SVG, no chart library)
+// --------------------------------------------------------------------------
+
+const CHART_W = 640;
+const CHART_H = 220;
+const CHART_PAD = 18;
+
+function renderReadingsChart(readings) {
+  if (!readings || readings.length === 0) {
+    el.readingsChart.innerHTML = "";
+    el.chartEmpty.style.display = "block";
+    return;
+  }
+  el.chartEmpty.style.display = "none";
+
+  const n = readings.length;
+  const usableW = CHART_W - CHART_PAD * 2;
+  const usableH = CHART_H - CHART_PAD * 2;
+  const stepX = n > 1 ? usableW / (n - 1) : 0;
+
+  const points = readings.map((r, i) => {
+    const x = CHART_PAD + i * stepX;
+    const y = CHART_PAD + (r.motion ? 0 : usableH); // motion = high line, idle = low line
+    return { x, y, motion: !!r.motion };
+  });
+
+  const linePath = points
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+    .join(" ");
+
+  const areaPath =
+    `M ${CHART_PAD} ${CHART_H - CHART_PAD} ` +
+    points.map((p) => `L ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ") +
+    ` L ${points[points.length - 1].x.toFixed(1)} ${CHART_H - CHART_PAD} Z`;
+
+  const dots = points
+    .filter((p) => p.motion)
+    .map((p) => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" class="chart-dot"/>`)
+    .join("");
+
+  const gridLines = [0.25, 0.5, 0.75].map((frac) => {
+    const y = CHART_PAD + usableH * frac;
+    return `<line x1="${CHART_PAD}" y1="${y}" x2="${CHART_W - CHART_PAD}" y2="${y}" class="chart-grid"/>`;
+  }).join("");
+
+  el.readingsChart.innerHTML = `
+    <defs>
+      <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="var(--signal)" stop-opacity="0.35"/>
+        <stop offset="100%" stop-color="var(--signal)" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    ${gridLines}
+    <path d="${areaPath}" fill="url(#chartFill)" stroke="none"/>
+    <path d="${linePath}" fill="none" stroke="var(--signal)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    ${dots}
+  `;
+}
+
+async function pollReadings() {
+  if (readingsAbort) readingsAbort.abort();
+  readingsAbort = new AbortController();
+  try {
+    const res = await fetch("/api/readings", { cache: "no-store", signal: readingsAbort.signal });
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    const data = await res.json();
+    const readings = data.readings || [];
+    el.readingsCount.textContent = readings.length;
+
+    // Skip the SVG rebuild (path re-stringified + reparsed) when nothing changed.
+    const signature = readings.length
+      ? `${readings.length}|${readings[readings.length - 1].t}|${readings[readings.length - 1].motion}`
+      : "";
+    if (signature !== lastReadingsSignature) {
+      lastReadingsSignature = signature;
+      renderReadingsChart(readings);
+    }
+  } catch (err) {
+    /* leave the existing chart in place on a transient failure */
+  }
+}
+
+// --------------------------------------------------------------------------
+// Motion-triggered video recordings gallery
 // --------------------------------------------------------------------------
 
 function renderRecordings(files) {
@@ -258,4 +349,3 @@ let recordingsTimer = setInterval(() => {
 
 poll();
 pollRecordings();
-if (window.initMotionGraph) window.initMotionGraph();

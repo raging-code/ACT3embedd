@@ -629,91 +629,30 @@ body {
   line-height: 1.5;
 }
 
+/* ---------- Fig. 3.3 — sensor readings chart ---------- */
 
-/* ---------- Unified 24h motion graph (Fig. 3.1 / Fig. 3.3) ----------
-   Shared by camera.html and buzzer.html so both dashboards show the
-   same graph instead of the old split UI (no graph on 3.1, a simpler
-   SVG chart on 3.3 only). Namespaced under .motion-graph / .mg- so it
-   can't collide with the rest of style.css. */
-
-.motion-graph {
+.chart-card {
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-.mg-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 13px 16px;
-  border-bottom: 1px solid var(--edge-soft);
-  font-size: 13px;
-  font-weight: 800;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.mg-head-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.mg-seg {
-  display: inline-flex;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--edge-soft);
-  border-radius: 10px;
-  padding: 3px;
-  gap: 2px;
-}
-
-.mg-seg button {
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  color: var(--text-dim);
-  background: transparent;
-  border: 0;
-  border-radius: 7px;
-  padding: 5px 11px;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s;
-}
-
-.mg-seg button:hover { color: #fff; }
-.mg-seg button.on { color: #0e0f11; background: #fff; }
-
-.mg-count {
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 700;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 20px;
-  padding: 2px 9px;
-  white-space: nowrap;
-}
-
-.mg-stage {
+.chart-wrap {
   position: relative;
-  padding: 10px 6px 0;
+  z-index: 1;
+  flex: 1;
+  min-height: 220px;
+  padding: 14px 16px 6px;
 }
 
-.mg-canvas {
-  display: block;
+#readingsChart {
   width: 100%;
-  height: 260px;
-  cursor: grab;
-  touch-action: none;
+  height: 100%;
+  min-height: 200px;
+  display: block;
 }
 
-.mg-canvas.grabbing { cursor: grabbing; }
-.mg-canvas.hot { cursor: pointer; }
-
-.mg-empty {
+.chart-empty {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -725,123 +664,33 @@ body {
   pointer-events: none;
 }
 
-.mg-foot {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 16px 14px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-faint);
-}
-
-.mg-foot b { color: var(--text-dim); font-weight: 600; }
-
-.mg-tip {
-  position: absolute;
-  pointer-events: none;
-  z-index: 5;
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 600;
-  color: #fff;
-  background: rgba(14, 15, 17, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 8px;
-  padding: 4px 10px;
-  white-space: nowrap;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
-  transform: translate(-50%, -100%);
-  opacity: 0;
-  transition: opacity 0.1s;
-}
-
-.mg-tip.on { opacity: 1; }
-
-/* fullscreen popup */
-
-.mg-pop {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  background: rgba(8, 9, 11, 0.55);
-  backdrop-filter: blur(22px) saturate(1.2);
-  -webkit-backdrop-filter: blur(22px) saturate(1.2);
-  padding: 3vh 3vw;
-}
-
-.mg-pop.open { display: flex; animation: mg-fade 0.16s ease-out; }
-
-@keyframes mg-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.mg-pop-frame {
+.chart-legend {
   position: relative;
-  max-width: 100%;
-  max-height: 100%;
+  z-index: 1;
+  display: flex;
+  gap: 18px;
+  padding: 4px 18px 16px;
+}
+
+.legend-item {
   display: flex;
   align-items: center;
-  justify-content: center;
-}
-
-.mg-pop-media {
-  display: block;
-  max-width: 94vw;
-  max-height: 88vh;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
-  background: #000;
-}
-
-.mg-pop-missing {
-  font-family: var(--mono);
-  font-size: 13px;
+  gap: 7px;
+  font-size: 11.5px;
   color: var(--text-dim);
-  background: rgba(20, 21, 24, 0.9);
-  border: 1px solid var(--edge-soft);
-  border-radius: 12px;
-  padding: 30px 40px;
-  margin: 0;
 }
 
-.mg-pop-bar {
-  position: absolute;
-  top: -2px;
-  left: 0;
-  right: 0;
-  transform: translateY(-100%);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 2px 10px;
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 700;
-  color: #fff;
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
+.legend-dot--motion { background: var(--signal); box-shadow: 0 0 6px 1px var(--signal-glow); }
+.legend-dot--idle { background: var(--text-faint); }
 
-.mg-pop-bar .mg-pop-title { letter-spacing: 0.03em; }
-.mg-pop-bar .mg-pop-title span { color: var(--text-dim); font-weight: 600; margin-left: 10px; }
-
-.mg-pop-x {
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 700;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: 9px;
-  padding: 5px 12px;
-  cursor: pointer;
-}
-
-.mg-pop-x:hover { background: rgba(255, 255, 255, 0.22); }
+.chart-grid { stroke: rgba(255,255,255,0.08); stroke-width: 1; }
+.chart-dot { fill: var(--signal); filter: drop-shadow(0 0 4px var(--signal-glow)); }
 
 /* ---------- Fig. 3.3 — buzzer card ---------- */
 

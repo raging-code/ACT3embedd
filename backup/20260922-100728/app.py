@@ -349,7 +349,7 @@ def index():
 
 @app.route("/camera")
 def camera_view():
-    """Fig. 3.1 — PIR + camera motion watch (the original dashboard)."""
+    """Fig. 3.1-3.2 — PIR + camera motion watch (the original dashboard)."""
     return render_template("camera.html")
 
 

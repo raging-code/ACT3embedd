@@ -349,7 +349,7 @@ def index():
 
 @app.route("/camera")
 def camera_view():
-    """Fig. 3.1 — PIR + camera motion watch (the original dashboard)."""
+    """Fig. 3.1-3.2 — PIR + camera motion watch (the original dashboard)."""
     return render_template("camera.html")
 
 
@@ -416,50 +416,6 @@ def api_gallery():
 def api_readings():
     """Returns the recent sensor-reading timeline for the Fig. 3.3 graph."""
     return jsonify({"readings": list(reading_log)})
-
-
-@app.route("/api/events")
-def api_events():
-    """Returns the last 24h of motion-trigger events for the unified
-    Fig. 3.1 / Fig. 3.3 motion graph, each paired with both the
-    snapshot (.jpg, Fig. 3.1) and recorded clip (.mp4, Fig. 3.3) filed
-    under the same motion_YYYYMMDD_HHMMSS stamp, when present on disk.
-    Camera watch and buzzer+graph both call this so they show the same
-    timeline instead of the old split UI."""
-    cutoff = time.time() - 24 * 3600
-    with state_lock:
-        events_snapshot = list(event_log)
-
-    out = []
-    for evt in events_snapshot:
-        try:
-            dt = datetime.fromisoformat(evt["timestamp"])
-        except (KeyError, ValueError):
-            continue
-        ts = dt.timestamp()
-        if ts < cutoff:
-            continue
-
-        image_file = evt.get("file")
-        stamp = None
-        if image_file and image_file.startswith("motion_") and image_file.endswith(".jpg"):
-            stamp = image_file[len("motion_"):-len(".jpg")]
-
-        video_file = None
-        if stamp:
-            candidate = f"motion_{stamp}.mp4"
-            if os.path.exists(os.path.join(RECORDING_DIR, candidate)):
-                video_file = candidate
-
-        out.append({
-            "t": dt.strftime("%H:%M:%S"),
-            "ts": ts,
-            "file_image": image_file if image_file and os.path.exists(os.path.join(CAPTURE_DIR, image_file)) else None,
-            "file_video": video_file,
-        })
-
-    out.sort(key=lambda e: e["ts"])
-    return jsonify({"events": out})
 
 
 @app.route("/api/recordings")

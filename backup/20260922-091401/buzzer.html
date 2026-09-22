@@ -41,36 +41,20 @@
     <!-- Left: sensor-reading graph + motion-triggered video clips -->
     <section class="feed-panel">
 
-      <section class="motion-graph glass" id="motionGraph">
-        <div class="mg-head">
-          <span>Motion timeline · last 24h</span>
-          <div class="mg-head-right">
-            <span class="mg-seg">
-              <button data-fig="31" class="on" title="Click a spike to view the snapshot">Fig 3.1 · image</button>
-              <button data-fig="33" title="Click a spike to view the recorded clip">Fig 3.3 · video</button>
-            </span>
-            <span class="mg-count">0 events</span>
-          </div>
+      <div class="chart-card glass">
+        <div class="gallery-head">
+          <span>Sensor readings</span>
+          <span class="log-head-count" id="readingsCount">0</span>
         </div>
-        <div class="mg-stage">
-          <canvas class="mg-canvas"></canvas>
-          <div class="mg-tip"></div>
-          <p class="mg-empty">Waiting for motion events...</p>
+        <div class="chart-wrap">
+          <svg id="readingsChart" viewBox="0 0 640 220" preserveAspectRatio="none" aria-label="Motion sensor readings over time"></svg>
+          <p class="chart-empty" id="chartEmpty">Waiting for sensor data...</p>
         </div>
-        <div class="mg-foot">
-          <span>Zoom <b class="mg-zoom">1.0×</b> · scroll to zoom, drag to pan</span>
-          <span class="mg-range">00:00 – 24:00</span>
+        <div class="chart-legend">
+          <span class="legend-item"><span class="legend-dot legend-dot--motion"></span>Motion detected</span>
+          <span class="legend-item"><span class="legend-dot legend-dot--idle"></span>No motion</span>
         </div>
-
-        <div class="mg-pop" aria-modal="true" role="dialog">
-          <div class="mg-pop-frame">
-            <div class="mg-pop-bar">
-              <div class="mg-pop-title"></div>
-              <button class="mg-pop-x">close ✕</button>
-            </div>
-          </div>
-        </div>
-      </section>
+      </div>
 
       <div class="gallery glass" id="recordingGallery">
         <div class="gallery-head">
@@ -138,7 +122,6 @@
 
 </div>
 
-<script src="/static/graph.js"></script>
 <script src="/static/buzzer.js"></script>
 </body>
 </html>
