@@ -46,15 +46,15 @@ body {
   overflow-x: hidden;
   background:
     linear-gradient(160deg,
-      #234F3C 0%,
-      #1B3F30 14%,
-      #143226 28%,
-      #0E2620 42%,
-      #081A16 55%,
-      #0D2119 68%,
-      #163527 80%,
-      #1D4636 92%,
-      #234F3C 100%);
+      #3A3D42 0%,
+      #2C2E33 14%,
+      #202226 28%,
+      #17181B 42%,
+      #0E0F11 55%,
+      #191A1D 68%,
+      #26282C 80%,
+      #313336 92%,
+      #3A3D42 100%);
   background-attachment: fixed;
 }
 
@@ -112,8 +112,8 @@ body {
      MJPEG feed) and on every other .glass panel on the page at the same
      time. 14px reads visually almost identically as frosted glass but is
      dramatically cheaper for the RPi's GPU to recompute continuously. */
-  backdrop-filter: blur(7px) saturate(1.25);
-  -webkit-backdrop-filter: blur(7px) saturate(1.25);
+  backdrop-filter: blur(14px) saturate(1.8);
+  -webkit-backdrop-filter: blur(14px) saturate(1.8);
   transform: translateZ(0);
   border: 1px solid var(--edge-soft);
   border-radius: var(--radius-m);
@@ -215,8 +215,8 @@ body {
   letter-spacing: 0.02em;
   color: #fff;
   background: linear-gradient(155deg, rgba(111,227,190,0.85), rgba(95,176,240,0.55));
-  backdrop-filter: blur(6px) saturate(1.2);
-  -webkit-backdrop-filter: blur(6px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.6);
+  -webkit-backdrop-filter: blur(12px) saturate(1.6);
   border: 1px solid rgba(255,255,255,0.3);
   border-radius: var(--radius-s);
   padding: 9px 16px;
@@ -330,8 +330,8 @@ body {
   border: 1px solid var(--edge-soft);
   border-radius: 20px;
   padding: 5px 11px 5px 9px;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .live-tag {
@@ -521,8 +521,8 @@ body {
   align-items: center;
   justify-content: center;
   background: rgba(8, 9, 11, 0.55);
-  backdrop-filter: blur(10px) saturate(1.1);
-  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
   padding: 3vh 3vw;
 }
 .gallery-all-pop.open { display: flex; animation: mg-fade 0.16s ease-out; }
@@ -906,8 +906,8 @@ body {
   align-items: center;
   justify-content: center;
   background: rgba(8, 9, 11, 0.55);
-  backdrop-filter: blur(10px) saturate(1.1);
-  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
   padding: 3vh 3vw;
 }
 
