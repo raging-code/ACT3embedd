@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Perimeter — Buzzer + Graph</title>
+<title>Perimeter — Camera Watch</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -26,7 +26,7 @@
       </a>
       <span class="dot" id="pulse-dot"></span>
       <span class="bar-name">PERIMETER</span>
-      <span class="bar-sub">Fig. 3.3 · buzzer + graph</span>
+      <span class="bar-sub">Fig. 3.1 · camera watch</span>
     </div>
     <div class="bar-right">
       <span class="bar-clock" id="clock">--:--:--</span>
@@ -38,14 +38,13 @@
 
   <main class="grid">
 
-    <!-- Left: sensor-reading graph + motion-triggered video clips -->
     <section class="feed-panel">
 
       <section class="motion-graph glass" id="motionGraph">
         <div class="mg-head">
           <span>Motion timeline · last 24h</span>
           <div class="mg-head-right">
-            <span class="mg-seg"><button class="on" disabled title="This dashboard always opens the recorded clip">Fig 3.3 · video</button></span>
+            <span class="mg-seg"><button class="on" disabled title="This dashboard always opens the snapshot">Fig 3.1 · image</button></span>
             <span class="mg-count">0 events</span>
           </div>
         </div>
@@ -69,52 +68,39 @@
         </div>
       </section>
 
-      <div class="gallery glass" id="recordingGallery">
-        <div class="gallery-head">
-          <span>Motion recordings</span>
-          <div class="gallery-head-right">
-            <span class="log-head-count" id="recordingCount">0</span>
-            <button class="gallery-view-all-btn" id="recordingViewAllBtn" type="button">View all</button>
-          </div>
+      <div class="feed-frame glass" id="liveFrame">
+        <img id="liveImg" alt="Live camera feed" src="/video_feed">
+        <div class="feed-empty" id="liveEmpty">
+          <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+            <circle cx="20" cy="20" r="18" stroke="currentColor" stroke-width="1.4"/>
+            <circle cx="20" cy="20" r="6" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M2 20h6M32 20h6M20 2v6M20 32v6" stroke="currentColor" stroke-width="1.4"/>
+          </svg>
+          <p>Camera not connected</p>
         </div>
-        <div class="gallery-strip gallery-strip--video gallery-strip--latest" id="recordingStrip">
-          <p class="gallery-empty" id="recordingEmpty">Clips recorded on motion will appear here.</p>
+        <div class="feed-tag live-tag" id="liveTag">
+          <span class="live-dot"></span>LIVE
         </div>
       </div>
+      <div class="feed-caption">
+        <span>Live camera feed</span>
+        <span class="feed-caption-sep">·</span>
+        <span id="liveResolution">webcam</span>
+      </div>
 
-      <div class="gallery-all-pop" id="recordingAllPop" aria-modal="true" role="dialog">
-        <div class="gallery-all-frame">
-          <div class="gallery-all-bar">
-            <span>All motion recordings</span>
-            <button class="mg-pop-x" id="recordingAllClose" type="button">close ✕</button>
-          </div>
-          <div class="gallery-all-list" id="recordingAllList"></div>
+      <div class="gallery glass">
+        <div class="gallery-head">
+          <span>Motion captures</span>
+          <span class="log-head-count" id="galleryCount">0</span>
+        </div>
+        <div class="gallery-strip" id="galleryStrip">
+          <p class="gallery-empty" id="galleryEmpty">Snapshots taken on motion will appear here.</p>
         </div>
       </div>
 
     </section>
 
-    <!-- Right: buzzer module + stats -->
     <aside class="side">
-
-      <div class="buzzer-card glass">
-        <div class="buzzer-card-top">
-          <span class="module-name">Active buzzer</span>
-          <span class="module-state" id="modBuzzerState">checking</span>
-        </div>
-        <div class="buzzer-visual" id="buzzerVisual">
-          <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
-            <circle cx="28" cy="28" r="24" stroke="currentColor" stroke-width="2"/>
-            <path d="M18 28a10 10 0 0 1 20 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <path d="M14 28a14 14 0 0 1 28 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
-            <circle cx="28" cy="28" r="3.5" fill="currentColor"/>
-          </svg>
-        </div>
-        <p class="buzzer-hint" id="buzzerHint">Sounds automatically whenever motion is detected while armed. A 5-second video also records.</p>
-        <button class="arm-toggle buzzer-test-btn" id="buzzerTestBtn">
-          <span>Test buzzer</span>
-        </button>
-      </div>
 
       <div class="stat-row">
         <div class="stat glass">
@@ -124,6 +110,17 @@
         <div class="stat glass">
           <span class="stat-value" id="statUptime">0m</span>
           <span class="stat-label">watch time</span>
+        </div>
+      </div>
+
+      <div class="module-row">
+        <div class="module glass" id="modSensor">
+          <span class="module-name">PIR sensor</span>
+          <span class="module-state" id="modSensorState">checking</span>
+        </div>
+        <div class="module glass" id="modCamera">
+          <span class="module-name">Webcam</span>
+          <span class="module-state" id="modCameraState">checking</span>
         </div>
       </div>
 
@@ -141,7 +138,7 @@
   </main>
 
   <footer class="foot">
-    <span>Raspberry Pi · PIR + USB webcam + active buzzer</span>
+    <span>Raspberry Pi · PIR + USB webcam</span>
     <span class="foot-sep">·</span>
     <span id="footStatus">connecting…</span>
   </footer>
@@ -149,6 +146,6 @@
 </div>
 
 <script src="/static/graph.js"></script>
-<script src="/static/buzzer.js"></script>
+<script src="/static/camera.js"></script>
 </body>
 </html>

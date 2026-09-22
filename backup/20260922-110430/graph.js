@@ -265,22 +265,6 @@
       });
     }
 
-    // Let other scripts on this page (the gallery / recordings strip,
-    // and their "View all" list) open the exact same fullscreen, centered,
-    // blurred-background popup this graph uses for its own spikes -- fig
-    // is whatever this page is locked to (image on camera.html, video on
-    // buzzer.html), so a gallery thumbnail click and a graph spike click
-    // land on an identical popup.
-    window.motionGraphOpenPop = (targetRootId, filename, hhmmss) => {
-      if ((targetRootId || "motionGraph") !== (rootId || "motionGraph")) return;
-      const [h, m, s] = (hhmmss || "00:00:00").split(":").map(Number);
-      openPop({
-        t: (h || 0) * 3600 + (m || 0) * 60 + (s || 0),
-        file_image: filename,
-        file_video: filename,
-      });
-    };
-
     popX.addEventListener("click", closePop);
     pop.addEventListener("mousedown", (ev) => { if (ev.target === pop) closePop(); });
     window.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && pop.classList.contains("open")) closePop(); });

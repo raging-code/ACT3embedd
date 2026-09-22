@@ -30,10 +30,6 @@ const el = {
 
   galleryStrip: document.getElementById("galleryStrip"),
   galleryCount: document.getElementById("galleryCount"),
-  galleryViewAllBtn: document.getElementById("galleryViewAllBtn"),
-  galleryAllPop: document.getElementById("galleryAllPop"),
-  galleryAllList: document.getElementById("galleryAllList"),
-  galleryAllClose: document.getElementById("galleryAllClose"),
 
   statTotal: document.getElementById("statTotal"),
   statUptime: document.getElementById("statUptime"),
@@ -177,23 +173,8 @@ async function poll() {
   }
 }
 
-function timeLabelFor(filename) {
-  // filenames look like motion_20260918_025309.jpg — pull a readable time out of it
-  const match = filename.match(/(\d{2})(\d{2})(\d{2})\.\w+$/);
-  return match ? `${match[1]}:${match[2]}:${match[3]}` : "";
-}
-
-function openGalleryPop(filename) {
-  if (window.motionGraphOpenPop) {
-    window.motionGraphOpenPop("motionGraph", filename, timeLabelFor(filename));
-  }
-}
-
-let latestGalleryFiles = [];
-
 function renderGallery(files) {
   const signature = files.join(",");
-  latestGalleryFiles = files;
   if (signature === lastGallerySignature) return; // avoid needless re-render/flicker
   lastGallerySignature = signature;
 
@@ -205,52 +186,18 @@ function renderGallery(files) {
     return;
   }
 
-  // Only the latest capture is shown inline; the rest are one click away
-  // via "View all".
-  const filename = files[0];
-  const timeLabel = timeLabelFor(filename);
-  el.galleryStrip.innerHTML = `
-    <div class="gallery-shot" title="${filename}">
-      <img src="/captures/${filename}" alt="Motion capture ${filename}" loading="lazy">
-      <span class="gallery-shot-time">${timeLabel}</span>
-    </div>`;
-  const shot = el.galleryStrip.querySelector(".gallery-shot");
-  if (shot) shot.addEventListener("click", () => openGalleryPop(filename));
-}
-
-function renderGalleryAll() {
-  if (!latestGalleryFiles.length) {
-    el.galleryAllList.innerHTML = '<p class="gallery-empty">Snapshots taken on motion will appear here.</p>';
-    return;
-  }
-  el.galleryAllList.innerHTML = latestGalleryFiles
+  el.galleryStrip.innerHTML = files
     .map((filename) => {
-      const timeLabel = timeLabelFor(filename);
+      // filenames look like motion_20260918_025309.jpg — pull a readable time out of it
+      const match = filename.match(/(\d{2})(\d{2})(\d{2})\.\w+$/);
+      const timeLabel = match ? `${match[1]}:${match[2]}:${match[3]}` : "";
       return `
-        <div class="gallery-all-row" data-filename="${filename}" title="${filename}">
+        <div class="gallery-shot" title="${filename}">
           <img src="/captures/${filename}" alt="Motion capture ${filename}" loading="lazy">
           <span class="gallery-shot-time">${timeLabel}</span>
         </div>`;
     })
     .join("");
-  el.galleryAllList.querySelectorAll(".gallery-all-row").forEach((row) => {
-    row.addEventListener("click", () => openGalleryPop(row.dataset.filename));
-  });
-}
-
-if (el.galleryViewAllBtn) {
-  el.galleryViewAllBtn.addEventListener("click", () => {
-    renderGalleryAll();
-    el.galleryAllPop.classList.add("open");
-  });
-}
-if (el.galleryAllClose) {
-  el.galleryAllClose.addEventListener("click", () => el.galleryAllPop.classList.remove("open"));
-}
-if (el.galleryAllPop) {
-  el.galleryAllPop.addEventListener("mousedown", (ev) => {
-    if (ev.target === el.galleryAllPop) el.galleryAllPop.classList.remove("open");
-  });
 }
 
 async function pollGallery() {

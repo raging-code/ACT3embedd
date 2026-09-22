@@ -1,15 +1,20 @@
-/* Perimeter — Camera Watch (Fig. 3.1-3.2): dashboard logic
+/* Perimeter — Buzzer + Graph (Fig. 3.3): dashboard logic
    Polls /api/status every second and updates the console in place.
 
    Perf notes (2026-09-21 optimization pass):
-   - The event log now only re-renders its innerHTML when the underlying
-     events actually changed (signature check), matching the gallery's
-     existing dedupe pattern. Previously it rebuilt the whole <ol> every
-     single poll tick even when nothing changed.
+   - The event log and the sensor-readings chart now only re-render when
+     the underlying data actually changed (signature check), matching
+     the recordings gallery's existing dedupe pattern. Previously both
+     rebuilt their full innerHTML (a whole SVG path re-stringified, in
+     the chart's case) every single poll tick even when nothing changed.
+   - /api/status and /api/readings were two independently-scheduled
+     1-second timers, each with its own fetch/parse/render cycle drifting
+     against each other. They're now a single tick that fires both in
+     the same frame, halving timer overhead and avoiding staggered
+     re-renders.
    - Polling pauses while the tab is hidden/backgrounded (Page
      Visibility API) and does one immediate catch-up poll the moment the
-     tab becomes visible again, instead of silently drifting or wasting
-     cycles on a tab nobody is looking at.
+     tab becomes visible again.
    - A failing connection now backs off (1s -> up to 8s) instead of
      hammering the server every second while offline; success resets it
      back to the normal 1s cadence immediately.
@@ -25,43 +30,30 @@ const el = {
   pulseDot: document.getElementById("pulse-dot"),
   armToggle: document.getElementById("armToggle"),
 
-  liveFrame: document.getElementById("liveFrame"),
-  liveImg: document.getElementById("liveImg"),
-
-  galleryStrip: document.getElementById("galleryStrip"),
-  galleryCount: document.getElementById("galleryCount"),
-  galleryViewAllBtn: document.getElementById("galleryViewAllBtn"),
-  galleryAllPop: document.getElementById("galleryAllPop"),
-  galleryAllList: document.getElementById("galleryAllList"),
-  galleryAllClose: document.getElementById("galleryAllClose"),
-
   statTotal: document.getElementById("statTotal"),
   statUptime: document.getElementById("statUptime"),
 
-  modSensorState: document.getElementById("modSensorState"),
-  modCameraState: document.getElementById("modCameraState"),
+  modBuzzerState: document.getElementById("modBuzzerState"),
 
   logList: document.getElementById("logList"),
   logCount: document.getElementById("logCount"),
 
   footStatus: document.getElementById("footStatus"),
+
+  buzzerVisual: document.getElementById("buzzerVisual"),
+  buzzerTestBtn: document.getElementById("buzzerTestBtn"),
+  buzzerHint: document.getElementById("buzzerHint"),
+
+  recordingStrip: document.getElementById("recordingStrip"),
+  recordingCount: document.getElementById("recordingCount"),
 };
 
-let lastRenderedFile = null;
-let lastGallerySignature = "";
+let lastRenderedRecording = null;
+let lastRecordingSignature = "";
 let lastLogSignature = "";
 let pollTimer = null;
 let currentPollMs = POLL_MS;
 let statusAbort = null;
-
-// Live stream: mark the frame as "has-image" once the MJPEG stream actually
-// loads, and fall back to the empty state if it errors out (e.g. no camera).
-el.liveImg.addEventListener("load", () => {
-  el.liveFrame.classList.add("has-image");
-});
-el.liveImg.addEventListener("error", () => {
-  el.liveFrame.classList.remove("has-image");
-});
 
 function tickClock() {
   const now = new Date();
@@ -127,6 +119,7 @@ async function poll() {
   if (statusAbort) statusAbort.abort();
   statusAbort = new AbortController();
 
+  let ok = true;
   try {
     const res = await fetch("/api/status", { cache: "no-store", signal: statusAbort.signal });
     if (!res.ok) throw new Error(`status ${res.status}`);
@@ -151,14 +144,17 @@ async function poll() {
     el.statTotal.textContent = data.total_events ?? 0;
     el.statUptime.textContent = fmtUptime(data.started_at);
 
-    // modules
-    setModule(el.modSensorState, data.sensor_ok, "reading", "offline");
-    setModule(el.modCameraState, data.camera_ok, "ready", "offline");
+    // buzzer module + visual
+    setModule(el.modBuzzerState, data.buzzer_ok, "ready", "offline");
+    el.buzzerVisual.classList.toggle("sounding", !!data.buzzer_active || !!data.recording_active);
+    el.buzzerHint.textContent = data.recording_active
+      ? "Recording a 5-second clip right now…"
+      : "Sounds automatically whenever motion is detected while armed. A 5-second video also records.";
 
-    // refresh the gallery whenever a new capture has landed
-    if (data.last_capture_file && data.last_capture_file !== lastRenderedFile) {
-      lastRenderedFile = data.last_capture_file;
-      pollGallery();
+    // refresh the video-clip gallery whenever a new recording has landed
+    if (data.last_recording_file && data.last_recording_file !== lastRenderedRecording) {
+      lastRenderedRecording = data.last_recording_file;
+      pollRecordings();
     }
 
     // log
@@ -166,101 +162,63 @@ async function poll() {
     el.logCount.textContent = data.total_events ?? 0;
 
     el.footStatus.textContent = "connected";
-    currentPollMs = POLL_MS; // connection is healthy -- back to full speed
   } catch (err) {
+    ok = ok && err.name === "AbortError";
     if (err.name !== "AbortError") {
       el.footStatus.textContent = "connection lost — retrying…";
-      currentPollMs = Math.min(currentPollMs * 2, POLL_MS_MAX); // back off while offline
     }
-  } finally {
-    scheduleNextPoll(currentPollMs);
   }
-}
 
-function timeLabelFor(filename) {
-  // filenames look like motion_20260918_025309.jpg — pull a readable time out of it
-  const match = filename.match(/(\d{2})(\d{2})(\d{2})\.\w+$/);
-  return match ? `${match[1]}:${match[2]}:${match[3]}` : "";
-}
-
-function openGalleryPop(filename) {
-  if (window.motionGraphOpenPop) {
-    window.motionGraphOpenPop("motionGraph", filename, timeLabelFor(filename));
+  if (ok) {
+    currentPollMs = POLL_MS; // connection is healthy -- back to full speed
+  } else {
+    currentPollMs = Math.min(currentPollMs * 2, POLL_MS_MAX); // back off while offline
   }
+  scheduleNextPoll(currentPollMs);
 }
 
-let latestGalleryFiles = [];
+// --------------------------------------------------------------------------
+// Motion-triggered video recordings gallery (unified motion graph now lives
+// in static/graph.js, driven by /api/events, not this file)
+// --------------------------------------------------------------------------
 
-function renderGallery(files) {
+function renderRecordings(files) {
   const signature = files.join(",");
-  latestGalleryFiles = files;
-  if (signature === lastGallerySignature) return; // avoid needless re-render/flicker
-  lastGallerySignature = signature;
+  if (signature === lastRecordingSignature) return; // avoid needless re-render/flicker
+  lastRecordingSignature = signature;
 
-  el.galleryCount.textContent = files.length;
+  el.recordingCount.textContent = files.length;
 
   if (!files.length) {
-    el.galleryStrip.innerHTML =
-      '<p class="gallery-empty" id="galleryEmpty">Snapshots taken on motion will appear here.</p>';
+    el.recordingStrip.innerHTML =
+      '<p class="gallery-empty" id="recordingEmpty">5-second clips recorded on motion will appear here.</p>';
     return;
   }
 
-  // Only the latest capture is shown inline; the rest are one click away
-  // via "View all".
-  const filename = files[0];
-  const timeLabel = timeLabelFor(filename);
-  el.galleryStrip.innerHTML = `
-    <div class="gallery-shot" title="${filename}">
-      <img src="/captures/${filename}" alt="Motion capture ${filename}" loading="lazy">
-      <span class="gallery-shot-time">${timeLabel}</span>
-    </div>`;
-  const shot = el.galleryStrip.querySelector(".gallery-shot");
-  if (shot) shot.addEventListener("click", () => openGalleryPop(filename));
-}
-
-function renderGalleryAll() {
-  if (!latestGalleryFiles.length) {
-    el.galleryAllList.innerHTML = '<p class="gallery-empty">Snapshots taken on motion will appear here.</p>';
-    return;
-  }
-  el.galleryAllList.innerHTML = latestGalleryFiles
+  el.recordingStrip.innerHTML = files
     .map((filename) => {
-      const timeLabel = timeLabelFor(filename);
+      // filenames look like motion_20260918_025309.mp4 — pull a readable time out of it
+      const match = filename.match(/(\d{2})(\d{2})(\d{2})\.\w+$/);
+      const timeLabel = match ? `${match[1]}:${match[2]}:${match[3]}` : "";
       return `
-        <div class="gallery-all-row" data-filename="${filename}" title="${filename}">
-          <img src="/captures/${filename}" alt="Motion capture ${filename}" loading="lazy">
+        <div class="gallery-shot" title="${filename}">
+          <video src="/recordings/${filename}" muted loop playsinline preload="metadata"
+                 onmouseenter="this.play()" onmouseleave="this.pause(); this.currentTime = 0;"></video>
+          <span class="gallery-shot-duration">5s</span>
           <span class="gallery-shot-time">${timeLabel}</span>
         </div>`;
     })
     .join("");
-  el.galleryAllList.querySelectorAll(".gallery-all-row").forEach((row) => {
-    row.addEventListener("click", () => openGalleryPop(row.dataset.filename));
-  });
 }
 
-if (el.galleryViewAllBtn) {
-  el.galleryViewAllBtn.addEventListener("click", () => {
-    renderGalleryAll();
-    el.galleryAllPop.classList.add("open");
-  });
-}
-if (el.galleryAllClose) {
-  el.galleryAllClose.addEventListener("click", () => el.galleryAllPop.classList.remove("open"));
-}
-if (el.galleryAllPop) {
-  el.galleryAllPop.addEventListener("mousedown", (ev) => {
-    if (ev.target === el.galleryAllPop) el.galleryAllPop.classList.remove("open");
-  });
-}
-
-async function pollGallery() {
+async function pollRecordings() {
   try {
-    const res = await fetch("/api/gallery", { cache: "no-store" });
+    const res = await fetch("/api/recordings", { cache: "no-store" });
     if (!res.ok) throw new Error(`status ${res.status}`);
     const data = await res.json();
-    renderGallery(data.files || []);
+    renderRecordings(data.files || []);
   } catch (err) {
-    /* leave the existing gallery in place on a transient failure */
+    /* leave the existing recordings gallery in place on a transient failure */
   }
 }
 
@@ -275,6 +233,16 @@ el.armToggle.addEventListener("click", async () => {
   poll();
 });
 
+el.buzzerTestBtn.addEventListener("click", async () => {
+  el.buzzerTestBtn.disabled = true;
+  try {
+    await fetch("/api/buzzer/test", { method: "POST" });
+  } catch (err) {
+    /* status poll will reflect actual buzzer state regardless */
+  }
+  setTimeout(() => { el.buzzerTestBtn.disabled = false; }, 1600);
+});
+
 // Pause polling while the tab is hidden/backgrounded; catch up immediately
 // on return instead of waiting out whatever interval was mid-flight.
 document.addEventListener("visibilitychange", () => {
@@ -284,10 +252,10 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
-let galleryTimer = setInterval(() => {
-  if (!document.hidden) pollGallery();
-}, POLL_MS * 4); // gallery changes less often than status
+let recordingsTimer = setInterval(() => {
+  if (!document.hidden) pollRecordings();
+}, POLL_MS * 4);
 
 poll();
-pollGallery();
-if (window.initMotionGraph) window.initMotionGraph("motionGraph", "31");
+pollRecordings();
+if (window.initMotionGraph) window.initMotionGraph("motionGraph", "33");

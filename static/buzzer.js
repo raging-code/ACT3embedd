@@ -46,6 +46,10 @@ const el = {
 
   recordingStrip: document.getElementById("recordingStrip"),
   recordingCount: document.getElementById("recordingCount"),
+  recordingViewAllBtn: document.getElementById("recordingViewAllBtn"),
+  recordingAllPop: document.getElementById("recordingAllPop"),
+  recordingAllList: document.getElementById("recordingAllList"),
+  recordingAllClose: document.getElementById("recordingAllClose"),
 };
 
 let lastRenderedRecording = null;
@@ -182,8 +186,23 @@ async function poll() {
 // in static/graph.js, driven by /api/events, not this file)
 // --------------------------------------------------------------------------
 
+function recordingTimeLabelFor(filename) {
+  // filenames look like motion_20260918_025309.mp4 — pull a readable time out of it
+  const match = filename.match(/(\d{2})(\d{2})(\d{2})\.\w+$/);
+  return match ? `${match[1]}:${match[2]}:${match[3]}` : "";
+}
+
+function openRecordingPop(filename) {
+  if (window.motionGraphOpenPop) {
+    window.motionGraphOpenPop("motionGraph", filename, recordingTimeLabelFor(filename));
+  }
+}
+
+let latestRecordingFiles = [];
+
 function renderRecordings(files) {
   const signature = files.join(",");
+  latestRecordingFiles = files;
   if (signature === lastRecordingSignature) return; // avoid needless re-render/flicker
   lastRecordingSignature = signature;
 
@@ -191,24 +210,58 @@ function renderRecordings(files) {
 
   if (!files.length) {
     el.recordingStrip.innerHTML =
-      '<p class="gallery-empty" id="recordingEmpty">5-second clips recorded on motion will appear here.</p>';
+      '<p class="gallery-empty" id="recordingEmpty">Clips recorded on motion will appear here.</p>';
     return;
   }
 
-  el.recordingStrip.innerHTML = files
+  // Only the latest clip is shown inline; the rest are one click away via
+  // "View all".
+  const filename = files[0];
+  const timeLabel = recordingTimeLabelFor(filename);
+  el.recordingStrip.innerHTML = `
+    <div class="gallery-shot" title="${filename}">
+      <video src="/recordings/${filename}" muted loop playsinline preload="metadata"
+             onmouseenter="this.play()" onmouseleave="this.pause(); this.currentTime = 0;"></video>
+      <span class="gallery-shot-time">${timeLabel}</span>
+    </div>`;
+  const shot = el.recordingStrip.querySelector(".gallery-shot");
+  if (shot) shot.addEventListener("click", () => openRecordingPop(filename));
+}
+
+function renderRecordingsAll() {
+  if (!latestRecordingFiles.length) {
+    el.recordingAllList.innerHTML = '<p class="gallery-empty">Clips recorded on motion will appear here.</p>';
+    return;
+  }
+  el.recordingAllList.innerHTML = latestRecordingFiles
     .map((filename) => {
-      // filenames look like motion_20260918_025309.mp4 — pull a readable time out of it
-      const match = filename.match(/(\d{2})(\d{2})(\d{2})\.\w+$/);
-      const timeLabel = match ? `${match[1]}:${match[2]}:${match[3]}` : "";
+      const timeLabel = recordingTimeLabelFor(filename);
       return `
-        <div class="gallery-shot" title="${filename}">
+        <div class="gallery-all-row" data-filename="${filename}" title="${filename}">
           <video src="/recordings/${filename}" muted loop playsinline preload="metadata"
                  onmouseenter="this.play()" onmouseleave="this.pause(); this.currentTime = 0;"></video>
-          <span class="gallery-shot-duration">5s</span>
           <span class="gallery-shot-time">${timeLabel}</span>
         </div>`;
     })
     .join("");
+  el.recordingAllList.querySelectorAll(".gallery-all-row").forEach((row) => {
+    row.addEventListener("click", () => openRecordingPop(row.dataset.filename));
+  });
+}
+
+if (el.recordingViewAllBtn) {
+  el.recordingViewAllBtn.addEventListener("click", () => {
+    renderRecordingsAll();
+    el.recordingAllPop.classList.add("open");
+  });
+}
+if (el.recordingAllClose) {
+  el.recordingAllClose.addEventListener("click", () => el.recordingAllPop.classList.remove("open"));
+}
+if (el.recordingAllPop) {
+  el.recordingAllPop.addEventListener("mousedown", (ev) => {
+    if (ev.target === el.recordingAllPop) el.recordingAllPop.classList.remove("open");
+  });
 }
 
 async function pollRecordings() {

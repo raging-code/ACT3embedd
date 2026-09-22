@@ -91,10 +91,23 @@
       <div class="gallery glass">
         <div class="gallery-head">
           <span>Motion captures</span>
-          <span class="log-head-count" id="galleryCount">0</span>
+          <div class="gallery-head-right">
+            <span class="log-head-count" id="galleryCount">0</span>
+            <button class="gallery-view-all-btn" id="galleryViewAllBtn" type="button">View all</button>
+          </div>
         </div>
-        <div class="gallery-strip" id="galleryStrip">
+        <div class="gallery-strip gallery-strip--latest" id="galleryStrip">
           <p class="gallery-empty" id="galleryEmpty">Snapshots taken on motion will appear here.</p>
+        </div>
+      </div>
+
+      <div class="gallery-all-pop" id="galleryAllPop" aria-modal="true" role="dialog">
+        <div class="gallery-all-frame">
+          <div class="gallery-all-bar">
+            <span>All motion captures</span>
+            <button class="mg-pop-x" id="galleryAllClose" type="button">close ✕</button>
+          </div>
+          <div class="gallery-all-list" id="galleryAllList"></div>
         </div>
       </div>
 
