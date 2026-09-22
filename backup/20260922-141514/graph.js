@@ -407,12 +407,7 @@
       if (eventsAbort) eventsAbort.abort();
       eventsAbort = new AbortController();
       try {
-        // Scope the timeline to this dashboard's own events -- Fig. 3.1
-        // (fig "31") should never show a Fig. 3.3 recording spike and
-        // vice versa. See /api/events in app.py for the page-filtered logic.
-        const pageParam = fixedFig === "33" ? "buzzer" : fixedFig === "31" ? "camera" : "";
-        const url = pageParam ? `/api/events?page=${pageParam}` : "/api/events";
-        const res = await fetch(url, { cache: "no-store", signal: eventsAbort.signal });
+        const res = await fetch("/api/events", { cache: "no-store", signal: eventsAbort.signal });
         if (!res.ok) throw new Error(`status ${res.status}`);
         const data = await res.json();
         events = toDayEvents(data.events || []);

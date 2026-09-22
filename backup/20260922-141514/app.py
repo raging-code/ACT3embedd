@@ -675,23 +675,21 @@ def api_readings():
 
 @app.route("/api/events")
 def api_events():
-    """Returns the last 24h of motion-trigger events for the motion graph.
-    `?page=camera` (Fig. 3.1) returns ONLY snapshot events -- no video is
-    ever attached, even if one happens to exist for the same timestamp,
-    so Fig. 3.1's timeline can never show a Fig. 3.3 recording spike.
-    `?page=buzzer` (Fig. 3.3) returns ONLY recording events, paired with
-    their snapshot only when that same trigger produced both (which
-    happens exactly when Fig. 3.3 was being watched at the moment motion
-    fired -- see is_page_active() / sensor_loop()). No `page` param keeps
-    the old merged-timeline behavior, for backward compatibility with
-    anything else still calling this route without one."""
-    from flask import request
-    page = request.args.get("page")
+    """Returns the last 24h of motion-trigger events for the unified
+    Fig. 3.1 / Fig. 3.3 motion graph, each paired with both the
+    snapshot (.jpg, Fig. 3.1) and recorded clip (.mp4, Fig. 3.3) filed
+    under the same motion_YYYYMMDD_HHMMSS stamp, when present on disk.
+    Camera watch and buzzer+graph both call this so they show the same
+    timeline instead of the old split UI."""
     cutoff = time.time() - 24 * 3600
     with state_lock:
         image_events = list(event_log)
         video_events = list(recording_event_log)
 
+    # Fig. 3.1 (snapshot) and Fig. 3.3 (recording) now log independently
+    # (see /api/status), so the graph merges both by their shared
+    # motion_YYYYMMDD_HHMMSS stamp to keep showing one unified timeline
+    # with both an image and a video attached to the same trigger moment.
     by_stamp = {}
 
     def stamp_of(filename, ext):
@@ -699,54 +697,46 @@ def api_events():
             return filename[len("motion_"):-len(ext)]
         return None
 
-    if page != "buzzer":
-        for evt in image_events:
-            try:
-                dt = datetime.fromisoformat(evt["timestamp"])
-            except (KeyError, ValueError):
-                continue
-            ts = dt.timestamp()
-            if ts < cutoff:
-                continue
-            image_file = evt.get("file")
-            stamp = stamp_of(image_file, ".jpg") or evt["timestamp"]
-            entry = by_stamp.setdefault(stamp, {"t": dt.strftime("%H:%M:%S"), "ts": ts, "file_image": None, "file_video": None})
-            if image_file and os.path.exists(os.path.join(CAPTURE_DIR, image_file)):
-                entry["file_image"] = image_file
+    for evt in image_events:
+        try:
+            dt = datetime.fromisoformat(evt["timestamp"])
+        except (KeyError, ValueError):
+            continue
+        ts = dt.timestamp()
+        if ts < cutoff:
+            continue
+        image_file = evt.get("file")
+        stamp = stamp_of(image_file, ".jpg") or evt["timestamp"]
+        entry = by_stamp.setdefault(stamp, {"t": dt.strftime("%H:%M:%S"), "ts": ts, "file_image": None, "file_video": None})
+        if image_file and os.path.exists(os.path.join(CAPTURE_DIR, image_file)):
+            entry["file_image"] = image_file
 
-    if page != "camera":
-        for evt in video_events:
-            try:
-                dt = datetime.fromisoformat(evt["timestamp"])
-            except (KeyError, ValueError):
-                continue
-            ts = dt.timestamp()
-            if ts < cutoff:
-                continue
-            video_file = evt.get("file")
-            stamp = stamp_of(video_file, ".mp4") or evt["timestamp"]
-            entry = by_stamp.setdefault(stamp, {"t": dt.strftime("%H:%M:%S"), "ts": ts, "file_image": None, "file_video": None})
-            if video_file and os.path.exists(os.path.join(RECORDING_DIR, video_file)):
-                entry["file_video"] = video_file
-            # a stamp that only has a video event so far still needs its
-            # matching snapshot filled in if one exists on disk -- safe,
-            # because it's the SAME physical trigger that produced both
-            # files, not a snapshot borrowed from an unrelated Fig. 3.1
-            # session
-            if entry["file_image"] is None:
-                candidate = f"motion_{stamp}.jpg"
-                if os.path.exists(os.path.join(CAPTURE_DIR, candidate)):
-                    entry["file_image"] = candidate
+    for evt in video_events:
+        try:
+            dt = datetime.fromisoformat(evt["timestamp"])
+        except (KeyError, ValueError):
+            continue
+        ts = dt.timestamp()
+        if ts < cutoff:
+            continue
+        video_file = evt.get("file")
+        stamp = stamp_of(video_file, ".mp4") or evt["timestamp"]
+        entry = by_stamp.setdefault(stamp, {"t": dt.strftime("%H:%M:%S"), "ts": ts, "file_image": None, "file_video": None})
+        if video_file and os.path.exists(os.path.join(RECORDING_DIR, video_file)):
+            entry["file_video"] = video_file
+        # a stamp that only has a video event so far still needs its
+        # matching snapshot filled in if one exists on disk
+        if entry["file_image"] is None:
+            candidate = f"motion_{stamp}.jpg"
+            if os.path.exists(os.path.join(CAPTURE_DIR, candidate)):
+                entry["file_image"] = candidate
 
-    if page not in ("camera", "buzzer"):
-        # legacy/no-page-param behavior: keep the old cross-pairing so
-        # anything still calling this route without ?page= sees the
-        # original unified timeline
-        for stamp, entry in by_stamp.items():
-            if entry["file_video"] is None:
-                candidate = f"motion_{stamp}.mp4"
-                if os.path.exists(os.path.join(RECORDING_DIR, candidate)):
-                    entry["file_video"] = candidate
+    # and an image-only entry still needs its matching clip filled in
+    for stamp, entry in by_stamp.items():
+        if entry["file_video"] is None:
+            candidate = f"motion_{stamp}.mp4"
+            if os.path.exists(os.path.join(RECORDING_DIR, candidate)):
+                entry["file_video"] = candidate
 
     out = sorted(by_stamp.values(), key=lambda e: e["ts"])
     return jsonify({"events": out})
