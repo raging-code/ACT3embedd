@@ -198,20 +198,9 @@
       }
     }
 
-    // Was calling draw() (full clear + axis + spikes + minimap redraw) on
-    // every single requestAnimationFrame tick, unconditionally, forever --
-    // an uncapped 60fps+ loop running at all times on both dashboards even
-    // when nothing on screen had changed. Capped to ~20fps here: still
-    // smooth for panning/zooming/hover, but a large, constant cut to the
-    // redraw cost on the RPi.
-    const FRAME_INTERVAL_MS = 50;
     let rafId = null;
-    let lastDrawAt = 0;
-    function loop(now) {
-      if (now === undefined || now - lastDrawAt >= FRAME_INTERVAL_MS) {
-        lastDrawAt = now || 0;
-        draw();
-      }
+    function loop() {
+      draw();
       rafId = requestAnimationFrame(loop);
     }
 

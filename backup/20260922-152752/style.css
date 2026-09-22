@@ -107,14 +107,8 @@ body {
 .glass {
   position: relative;
   background: linear-gradient(155deg, rgba(255,255,255,0.14), rgba(255,255,255,0.03) 40%, rgba(255,255,255,0.07));
-  /* Lowered from blur(32px) saturate(1.8) -- that cost was being paid on
-     every incoming video frame for .feed-frame (which carries the live
-     MJPEG feed) and on every other .glass panel on the page at the same
-     time. 14px reads visually almost identically as frosted glass but is
-     dramatically cheaper for the RPi's GPU to recompute continuously. */
-  backdrop-filter: blur(14px) saturate(1.8);
-  -webkit-backdrop-filter: blur(14px) saturate(1.8);
-  transform: translateZ(0);
+  backdrop-filter: blur(32px) saturate(1.8);
+  -webkit-backdrop-filter: blur(32px) saturate(1.8);
   border: 1px solid var(--edge-soft);
   border-radius: var(--radius-m);
   box-shadow:

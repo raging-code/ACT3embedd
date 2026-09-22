@@ -278,30 +278,6 @@ def grab_frame():
     return frame
 
 
-def stamp_timestamp(frame):
-    """Burns the current date/time into the top-right corner of `frame`
-    (an OpenCV BGR ndarray, modified in place and also returned). Used on
-    every captured snapshot and every frame written to a recorded clip,
-    so both Fig. 3.1 images and Fig. 3.3 videos carry a visible
-    timestamp. Font scale and margin are derived from the frame's own
-    width so it looks right regardless of camera resolution."""
-    h, w = frame.shape[:2]
-    text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = max(0.45, w / 1280)
-    thickness = max(1, round(font_scale * 2))
-    (text_w, text_h), baseline = cv2.getTextSize(text, font, font_scale, thickness)
-    margin = max(8, round(w * 0.012))
-    x = w - text_w - margin
-    y = margin + text_h
-    # Thin dark outline first so the white text stays readable over any
-    # background (bright sky, white walls, etc.), same trick used for the
-    # SIMULATE-mode label above.
-    cv2.putText(frame, text, (x, y), font, font_scale, (0, 0, 0), thickness + 2, cv2.LINE_AA)
-    cv2.putText(frame, text, (x, y), font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
-    return frame
-
-
 def capture_frame():
     """Grab a frame from the webcam and save it to disk. Returns the filename."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -310,13 +286,13 @@ def capture_frame():
 
     if SIMULATE:
         frame = _simulated_frame(label="CAPTURE")
-        cv2.imwrite(filepath, stamp_timestamp(frame))
+        cv2.imwrite(filepath, frame)
         return filename
 
     frame = grab_frame()
     if frame is None:
         return None
-    cv2.imwrite(filepath, stamp_timestamp(frame))
+    cv2.imwrite(filepath, frame)
     return filename
 
 
@@ -396,7 +372,7 @@ def record_clip(seconds=RECORDING_SECONDS, fps=RECORDING_FPS):
         start = time.time()
         frame_count = 0
         while True:
-            writer.write(stamp_timestamp(_simulated_frame(label="RECORDING")))
+            writer.write(_simulated_frame(label="RECORDING"))
             frame_count += 1
             time.sleep(frame_interval)
             elapsed = time.time() - start
@@ -427,7 +403,7 @@ def record_clip(seconds=RECORDING_SECONDS, fps=RECORDING_FPS):
         # would just show up black in the browser with no explanation.
         print("record_clip: VideoWriter failed to open -- check OpenCV's video codec support")
         return None
-    writer.write(stamp_timestamp(probe))
+    writer.write(probe)
 
     frame_interval = 1 / fps
     clip_start = time.time()
@@ -435,7 +411,7 @@ def record_clip(seconds=RECORDING_SECONDS, fps=RECORDING_FPS):
         loop_start = time.time()
         frame = grab_frame()
         if frame is not None:
-            writer.write(stamp_timestamp(frame))
+            writer.write(frame)
         elapsed_frame = time.time() - loop_start
         time.sleep(max(0.0, frame_interval - elapsed_frame))
 

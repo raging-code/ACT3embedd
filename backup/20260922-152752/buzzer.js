@@ -244,8 +244,7 @@ function renderRecordings(files) {
   el.recordingStrip.innerHTML = `
     <div class="gallery-shot" title="${filename}">
       <video src="/recordings/${filename}" muted loop playsinline preload="metadata"
-             onloadedmetadata="this.currentTime = 0.1"
-             onmouseenter="this.play()" onmouseleave="this.pause(); this.currentTime = 0.1;"></video>
+             onmouseenter="this.play()" onmouseleave="this.pause(); this.currentTime = 0;"></video>
       <span class="gallery-shot-time">${timeLabel}</span>
     </div>`;
   const shot = el.recordingStrip.querySelector(".gallery-shot");
@@ -263,8 +262,7 @@ function renderRecordingsAll() {
       return `
         <div class="gallery-all-row" data-filename="${filename}" title="${filename}">
           <video src="/recordings/${filename}" muted loop playsinline preload="metadata"
-                 onloadedmetadata="this.currentTime = 0.1"
-                 onmouseenter="this.play()" onmouseleave="this.pause(); this.currentTime = 0.1;"></video>
+                 onmouseenter="this.play()" onmouseleave="this.pause(); this.currentTime = 0;"></video>
           <span class="gallery-shot-time">${timeLabel}</span>
         </div>`;
     })
