@@ -25,18 +25,10 @@
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3 5 8l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </a>
       <span class="dot" id="pulse-dot"></span>
+      <span class="bar-name">PERIMETER</span>
+      <span class="bar-sub">Fig. 3.1 · camera watch</span>
     </div>
     <div class="bar-right">
-      <div class="bar-modules">
-        <div class="bar-module glass" id="modSensor">
-          <span class="bar-module-name">PIR sensor</span>
-          <span class="bar-module-state" id="modSensorState">checking</span>
-        </div>
-        <div class="bar-module glass" id="modCamera">
-          <span class="bar-module-name">Webcam</span>
-          <span class="bar-module-state" id="modCameraState">checking</span>
-        </div>
-      </div>
       <span class="bar-clock" id="clock">--:--:--</span>
       <button class="arm-toggle" id="armToggle" data-armed="true">
         <span class="arm-toggle-label">ARMED</span>
@@ -131,6 +123,17 @@
         <div class="stat glass">
           <span class="stat-value" id="statUptime">0m</span>
           <span class="stat-label">watch time</span>
+        </div>
+      </div>
+
+      <div class="module-row">
+        <div class="module glass" id="modSensor">
+          <span class="module-name">PIR sensor</span>
+          <span class="module-state" id="modSensorState">checking</span>
+        </div>
+        <div class="module glass" id="modCamera">
+          <span class="module-name">Webcam</span>
+          <span class="module-state" id="modCameraState">checking</span>
         </div>
       </div>
 
