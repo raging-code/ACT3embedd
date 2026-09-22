@@ -136,22 +136,10 @@ page_last_seen = {"camera": 0.0, "buzzer": 0.0}
 
 
 def note_page_seen(page):
-    """Marks `page` as the one currently being watched. The two
-    dashboards are mutually exclusive: the instant one is polled, the
-    other is immediately marked not-active (set to 0.0), instead of
-    just letting its own heartbeat quietly expire after
-    PAGE_ACTIVE_TIMEOUT. That closes the window where switching from
-    Fig. 3.3 to Fig. 3.1 could still leave the server thinking Fig. 3.3
-    was "active" for up to another PAGE_ACTIVE_TIMEOUT seconds, which
-    let a Fig. 3.1 motion trigger also sound the buzzer / start a
-    recording / log an event on the Fig. 3.3 side."""
     if page not in page_last_seen:
         return
     with page_activity_lock:
         page_last_seen[page] = time.time()
-        for other in page_last_seen:
-            if other != page:
-                page_last_seen[other] = 0.0
 
 
 def is_page_active(page, timeout=PAGE_ACTIVE_TIMEOUT):
