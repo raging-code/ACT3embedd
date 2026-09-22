@@ -45,10 +45,7 @@
         <div class="mg-head">
           <span>Motion timeline · last 24h</span>
           <div class="mg-head-right">
-            <span class="mg-seg">
-              <button data-fig="31" class="on" title="Click a spike to view the snapshot">Fig 3.1 · image</button>
-              <button data-fig="33" title="Click a spike to view the recorded clip">Fig 3.3 · video</button>
-            </span>
+            <span class="mg-seg"><button class="on" disabled title="This dashboard always opens the recorded clip">Fig 3.3 · video</button></span>
             <span class="mg-count">0 events</span>
           </div>
         </div>
@@ -75,10 +72,23 @@
       <div class="gallery glass" id="recordingGallery">
         <div class="gallery-head">
           <span>Motion recordings</span>
-          <span class="log-head-count" id="recordingCount">0</span>
+          <div class="gallery-head-right">
+            <span class="log-head-count" id="recordingCount">0</span>
+            <button class="gallery-view-all-btn" id="recordingViewAllBtn" type="button">View all</button>
+          </div>
         </div>
-        <div class="gallery-strip gallery-strip--video" id="recordingStrip">
-          <p class="gallery-empty" id="recordingEmpty">5-second clips recorded on motion will appear here.</p>
+        <div class="gallery-strip gallery-strip--video gallery-strip--latest" id="recordingStrip">
+          <p class="gallery-empty" id="recordingEmpty">Clips recorded on motion will appear here.</p>
+        </div>
+      </div>
+
+      <div class="gallery-all-pop" id="recordingAllPop" aria-modal="true" role="dialog">
+        <div class="gallery-all-frame">
+          <div class="gallery-all-bar">
+            <span>All motion recordings</span>
+            <button class="mg-pop-x" id="recordingAllClose" type="button">close ✕</button>
+          </div>
+          <div class="gallery-all-list" id="recordingAllList"></div>
         </div>
       </div>
 

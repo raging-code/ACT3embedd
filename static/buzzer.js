@@ -30,6 +30,10 @@ const el = {
   pulseDot: document.getElementById("pulse-dot"),
   armToggle: document.getElementById("armToggle"),
 
+  liveFrame: document.getElementById("liveFrame"),
+  liveImg: document.getElementById("liveImg"),
+  recTag: document.getElementById("recTag"),
+
   statTotal: document.getElementById("statTotal"),
   statUptime: document.getElementById("statUptime"),
 
@@ -51,6 +55,17 @@ const el = {
   recordingAllList: document.getElementById("recordingAllList"),
   recordingAllClose: document.getElementById("recordingAllClose"),
 };
+
+// Live stream: mark the frame as "has-image" once the MJPEG stream actually
+// loads, and fall back to the empty state if it errors out (e.g. no camera).
+// Fig. 3.3 previously had no live view at all -- this is the same wiring
+// camera.js (Fig. 3.1) already uses.
+el.liveImg.addEventListener("load", () => {
+  el.liveFrame.classList.add("has-image");
+});
+el.liveImg.addEventListener("error", () => {
+  el.liveFrame.classList.remove("has-image");
+});
 
 let lastRenderedRecording = null;
 let lastRecordingSignature = "";
@@ -151,9 +166,13 @@ async function poll() {
     // buzzer module + visual
     setModule(el.modBuzzerState, data.buzzer_ok, "ready", "offline");
     el.buzzerVisual.classList.toggle("sounding", !!data.buzzer_active || !!data.recording_active);
+    if (el.recTag) el.recTag.classList.toggle("on", !!data.recording_active);
+    const ffmpegMissing = data.ffmpeg_available === false;
     el.buzzerHint.textContent = data.recording_active
       ? "Recording a 5-second clip right now…"
-      : "Sounds automatically whenever motion is detected while armed. A 5-second video also records.";
+      : ffmpegMissing
+        ? "Sounds automatically whenever motion is detected while armed. A 5-second video also records — install ffmpeg on the Pi (sudo apt install ffmpeg) so clips play back correctly in the browser."
+        : "Sounds automatically whenever motion is detected while armed. A 5-second video also records.";
 
     // refresh the video-clip gallery whenever a new recording has landed
     if (data.last_recording_file && data.last_recording_file !== lastRenderedRecording) {

@@ -351,6 +351,31 @@ body {
   50% { opacity: 0.4; }
 }
 
+/* Fig. 3.3's live feed additionally shows a REC badge (top-right) while
+   a motion-triggered clip is actively being recorded, so the feed reads
+   as "camera's live, and yes, it's currently recording" instead of
+   looking like nothing is happening. */
+.rec-tag {
+  left: auto;
+  right: 13px;
+  display: none;
+  align-items: center;
+  gap: 7px;
+  color: var(--off);
+  border-color: rgba(224,133,133,0.35);
+  font-weight: 600;
+}
+.rec-tag.on { display: flex; }
+
+.rec-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--off);
+  box-shadow: 0 0 8px 1px rgba(224,133,133,0.6);
+  animation: live-pulse 1s ease-in-out infinite;
+}
+
 .feed-caption {
   display: flex;
   gap: 8px;

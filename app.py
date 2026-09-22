@@ -46,6 +46,10 @@ RECORDING_FPS = 15          # matches the live stream's frame rate
 COOLDOWN_SECONDS = 5        # unused by the sensor loop now -- captures are edge-
                              # triggered (once per idle->motion transition) instead of
                              # cooldown-gated; kept in case other code references it
+PAGE_ACTIVE_TIMEOUT = 10    # seconds since a dashboard's last /api/status poll
+                             # before it's considered "not being watched" -- gates
+                             # the buzzer/video recording (Fig. 3.3-only) so they
+                             # don't fire while someone's on the Fig. 3.1 tab
 EVENT_HISTORY_LIMIT = 100   # how many past events to keep in memory
 READING_HISTORY_LIMIT = 120 # how many sensor-reading points to keep for the graph
 SENSOR_WARMUP_SECONDS = 2   # PIR sensors need a moment to settle after power-on
@@ -54,6 +58,13 @@ SIMULATE = os.environ.get("MOTION_SIM", "0") == "1"  # run without real GPIO/cam
 os.makedirs(CAPTURE_DIR, exist_ok=True)
 os.makedirs(RECORDING_DIR, exist_ok=True)
 os.makedirs(DATA_DIR, exist_ok=True)
+
+if shutil.which("ffmpeg") is None:
+    print(
+        "WARNING: ffmpeg not found on PATH -- Fig. 3.3 recorded clips will be "
+        "saved but will likely play back as a black rectangle in the browser "
+        "(see transcode_to_h264()). Install it with: sudo apt install ffmpeg"
+    )
 
 # --------------------------------------------------------------------------
 # GPIO setup (falls back to simulation if RPi.GPIO isn't available,
@@ -99,6 +110,7 @@ system_state = {
     "buzzer_active": False,
     "recording_active": False,
     "last_recording_file": None,
+    "ffmpeg_available": shutil.which("ffmpeg") is not None,
     "started_at": datetime.now().isoformat(timespec="seconds"),
 }
 # Fig. 3.1 (snapshot) and Fig. 3.3 (recording) each get their OWN event log now --
@@ -111,6 +123,29 @@ recording_event_log = deque(maxlen=EVENT_HISTORY_LIMIT)    # Fig. 3.3 -- recordi
 reading_log = deque(maxlen=READING_HISTORY_LIMIT)          # [{time, motion}] for the graph
 log_lock = threading.Lock()      # guards STATE_LOG_PATH read/write
 _save_timer = None                # debounce handle for persist_state_log()
+
+# Which dashboard(s) are actively being polled right now, so the sensor
+# loop knows whether it's safe to fire the buzzer / start a recording.
+# Fig. 3.1 (camera.html) should only ever produce a snapshot + log entry;
+# the buzzer and 5s video clip are a Fig. 3.3 (buzzer.html)-only behavior.
+# Each dashboard's poll loop hits /api/status?page=... roughly once a
+# second, so "last seen within PAGE_ACTIVE_TIMEOUT" is a reliable proxy
+# for "that tab is currently open".
+page_activity_lock = threading.Lock()
+page_last_seen = {"camera": 0.0, "buzzer": 0.0}
+
+
+def note_page_seen(page):
+    if page not in page_last_seen:
+        return
+    with page_activity_lock:
+        page_last_seen[page] = time.time()
+
+
+def is_page_active(page, timeout=PAGE_ACTIVE_TIMEOUT):
+    with page_activity_lock:
+        last_seen = page_last_seen.get(page, 0.0)
+    return (time.time() - last_seen) <= timeout
 
 
 def load_state_log():
@@ -318,6 +353,9 @@ def record_clip(seconds=RECORDING_SECONDS, fps=RECORDING_FPS):
         writer = cv2.VideoWriter(
             filepath, cv2.VideoWriter_fourcc(*"mp4v"), fps, (640, 480)
         )
+        if not writer.isOpened():
+            print("record_clip: VideoWriter failed to open (simulated clip)")
+            return None
         frame_interval = 1 / fps
         start = time.time()
         frame_count = 0
@@ -330,6 +368,9 @@ def record_clip(seconds=RECORDING_SECONDS, fps=RECORDING_FPS):
                 break
         writer.release()
         transcode_to_h264(filepath)
+        if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+            print(f"record_clip: {filename} ended up empty -- something went wrong writing it")
+            return None
         return filename
 
     if camera is None:
@@ -343,6 +384,13 @@ def record_clip(seconds=RECORDING_SECONDS, fps=RECORDING_FPS):
     writer = cv2.VideoWriter(
         filepath, cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height)
     )
+    if not writer.isOpened():
+        # OpenCV's mp4v encoder couldn't be opened at all (missing codec
+        # support in this build of opencv) -- bail out with a clear log
+        # line instead of silently producing an empty/corrupt .mp4 that
+        # would just show up black in the browser with no explanation.
+        print("record_clip: VideoWriter failed to open -- check OpenCV's video codec support")
+        return None
     writer.write(probe)
 
     frame_interval = 1 / fps
@@ -361,6 +409,9 @@ def record_clip(seconds=RECORDING_SECONDS, fps=RECORDING_FPS):
 
     writer.release()
     transcode_to_h264(filepath)
+    if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+        print(f"record_clip: {filename} ended up empty -- something went wrong writing it")
+        return None
     return filename
 
 
@@ -480,8 +531,16 @@ def sensor_loop():
                 # and trips again.
                 motion_active = True
                 filename = capture_frame()
-                sound_buzzer()
-                record_clip_async()
+
+                # Buzzer + video recording are a Fig. 3.3-only behavior --
+                # only fire them while someone actually has the buzzer.html
+                # dashboard open. Fig. 3.1 (camera.html) still gets its
+                # snapshot and event-log entry either way, exactly as before.
+                fig33_watching = is_page_active("buzzer")
+                if fig33_watching:
+                    sound_buzzer()
+                    record_clip_async()
+
                 event = {
                     "timestamp": datetime.now().isoformat(timespec="seconds"),
                     "file": filename,
@@ -494,7 +553,10 @@ def sensor_loop():
                         system_state["last_capture_file"] = filename
                 event_log.appendleft(event)
                 persist_state_log()
-                print(f"[{event['timestamp']}] Motion detected -> {filename} (buzzer sounded, recording >= {RECORDING_SECONDS}s clip)")
+                if fig33_watching:
+                    print(f"[{event['timestamp']}] Motion detected -> {filename} (buzzer sounded, recording >= {RECORDING_SECONDS}s clip)")
+                else:
+                    print(f"[{event['timestamp']}] Motion detected -> {filename} (Fig. 3.1 only -- buzzer/recording skipped)")
             elif is_motion_now and motion_active:
                 # Motion continues from the same streak -- keep
                 # motion_detected true (record_clip() reads this to decide
@@ -549,6 +611,7 @@ def api_status():
     backward compatibility with anything else still calling this route."""
     from flask import request
     page = request.args.get("page", "camera")
+    note_page_seen(page)  # heartbeat: this dashboard is (still) open
     with state_lock:
         payload = dict(system_state)
     if page == "buzzer":
