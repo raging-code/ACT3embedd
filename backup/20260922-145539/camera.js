@@ -147,12 +147,8 @@ async function poll() {
       ? "ARMED"
       : "DISARMED";
 
-    // stats -- total_events_for_page is Fig. 3.1's own snapshot count
-    // (server-computed in /api/status); data.total_events is the old
-    // GLOBAL counter shared with Fig. 3.3 and is only kept as a
-    // fallback for an older server that doesn't send the page-scoped
-    // field yet.
-    el.statTotal.textContent = data.total_events_for_page ?? data.total_events ?? 0;
+    // stats
+    el.statTotal.textContent = data.total_events ?? 0;
     el.statUptime.textContent = fmtUptime(data.started_at);
 
     // modules
@@ -167,7 +163,7 @@ async function poll() {
 
     // log
     renderLog(data.events);
-    el.logCount.textContent = data.total_events_for_page ?? data.total_events ?? 0;
+    el.logCount.textContent = data.total_events ?? 0;
 
     el.footStatus.textContent = "connected";
     currentPollMs = POLL_MS; // connection is healthy -- back to full speed
