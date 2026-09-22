@@ -237,4 +237,4 @@ let galleryTimer = setInterval(() => {
 
 poll();
 pollGallery();
-if (window.initMotionGraph) window.initMotionGraph();
+if (window.initMotionGraph) window.initMotionGraph("motionGraph", "31");

@@ -32,7 +32,7 @@
   const pad2 = (n) => String(n).padStart(2, "0");
   const hms = (s) => `${pad2(Math.floor(s / 3600) % 24)}:${pad2(Math.floor((s % 3600) / 60))}:${pad2(Math.floor(s % 60))}`;
 
-  function initMotionGraph(rootId, fixedFig) {
+  function initMotionGraph(rootId) {
     const root = document.getElementById(rootId || "motionGraph");
     if (!root) return;
 
@@ -54,7 +54,7 @@
     let viewLen = DAY;
     let W = 0, H = 0, dpr = 1;
     let hover = null, drag = null, selected = null;
-    let fig = fixedFig || "31"; // '31' = image popup, '33' = video popup -- locked when fixedFig is set
+    let fig = "31"; // '31' = image popup, '33' = video popup
     let eventsAbort = null;
     let pollTimer = null;
 
@@ -269,14 +269,12 @@
     pop.addEventListener("mousedown", (ev) => { if (ev.target === pop) closePop(); });
     window.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && pop.classList.contains("open")) closePop(); });
 
-    if (segEl && !fixedFig) {
-      segEl.addEventListener("click", (ev) => {
-        const b = ev.target.closest("button");
-        if (!b) return;
-        fig = b.dataset.fig;
-        segEl.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
-      });
-    }
+    segEl.addEventListener("click", (ev) => {
+      const b = ev.target.closest("button");
+      if (!b) return;
+      fig = b.dataset.fig;
+      segEl.querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+    });
 
     // ---------------- interaction ----------------
 

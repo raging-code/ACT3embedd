@@ -258,4 +258,4 @@ let recordingsTimer = setInterval(() => {
 
 poll();
 pollRecordings();
-if (window.initMotionGraph) window.initMotionGraph("motionGraph", "33");
+if (window.initMotionGraph) window.initMotionGraph();
