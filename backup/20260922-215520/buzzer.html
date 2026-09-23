@@ -25,14 +25,10 @@
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3 5 8l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </a>
       <span class="dot" id="pulse-dot"></span>
+      <span class="bar-name">PERIMETER</span>
+      <span class="bar-sub">Fig. 3.3 · buzzer + graph</span>
     </div>
     <div class="bar-right">
-      <div class="bar-modules">
-        <div class="bar-module glass" id="modBuzzer">
-          <span class="bar-module-name">Active buzzer</span>
-          <span class="bar-module-state" id="modBuzzerState">checking</span>
-        </div>
-      </div>
       <span class="bar-clock" id="clock">--:--:--</span>
       <button class="arm-toggle" id="armToggle" data-armed="true">
         <span class="arm-toggle-label">ARMED</span>
@@ -125,6 +121,10 @@
     <aside class="side">
 
       <div class="buzzer-card glass">
+        <div class="buzzer-card-top">
+          <span class="module-name">Active buzzer</span>
+          <span class="module-state" id="modBuzzerState">checking</span>
+        </div>
         <div class="buzzer-visual" id="buzzerVisual">
           <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
             <circle cx="28" cy="28" r="24" stroke="currentColor" stroke-width="2"/>
