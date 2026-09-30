@@ -94,21 +94,6 @@ PARTIAL_ASPECT_FACTOR = 2.0     # no face: a box this many times wider than a st
                                 # person is a torso / head+shoulders, not a whole body
 PERSON_MIN_CM, PERSON_MAX_CM = 120.0, 230.0   # "real size" range that looks like a
                                               # full standing height
-# --- body-part rulers (box-relative, learned at calibration) ----------------
-POSE_ENABLED = True
-POSE_MODEL = "yolov8n-pose.onnx"    # made once by export_pose_model.py (optional)
-POSE_INPUT = 416                    # must match IMGSZ in export_pose_model.py
-POSE_CONF = 0.40                    # min person confidence of the pose detector
-POSE_NEW_CONF = 0.50                # ... to add a person the box detector missed
-POSE_MATCH_IOU = 0.25               # pose person <-> detector box overlap
-POSE_EVERY = 3                      # pose pass every Nth loop (always when cut off)
-POSE_IDLE_EVERY = 4                 # nobody in view: look only every Nth loop
-POSE_CACHE_SECONDS = 0.6            # reuse the last pose result this long between passes
-KP_CONF = 0.50                      # keypoint confidence needed to use it as a ruler end
-KP_EDGE_FRAC = 0.01                 # keypoints this close to the frame edge are unreliable
-PART_MIN_PX = 12                    # shorter than this = too noisy to measure with
-PART_SEED_SAMPLES = 3               # observations before a NEW part ratio is trusted
-PART_LEARN_ALPHA = 0.10             # how fast learned ratios follow whole-box moments
 CALIBRATION_SAMPLES = 15
 CALIBRATION_MIN_SAMPLES = 8
 CALIBRATION_TIMEOUT = 8.0
@@ -123,9 +108,7 @@ DEFAULT_SETTINGS = {
                                  # from the box shape during calibration
     "cal_aspect": None,          # box width/height seen during calibration
     "cal_face_cm": None,         # face width in cm measured during calibration
-                                 # (None = FACE_DEFAULT_CM)  [legacy, unused now]
-    "cal_seg": None,             # {part: part_px / box_px} learned at calibration;
-                                 # the close-up ruler ("cut off" boxes) uses these
+                                 # (None = FACE_DEFAULT_CM)
     "focal_px": None,            # learned by calibration
     "cal_width": None,           # frame size the calibration was done at
     "cal_height": None,
@@ -175,64 +158,6 @@ def parse_yolov8(output, ratio, pad_x, pad_y, class_id,
              "y2": float(y2[i]), "conf": float(scores[i])} for i in idxs]
 
 
-# COCO keypoints: 0 nose 1/2 eyes 3/4 ears 5/6 shoulders 7/8 elbows 9/10 wrists
-#                 11/12 hips 13/14 knees 15/16 ankles   (odd = left, even = right)
-# name: (points A, points B, kind). A / B are averaged over the visible members.
-#   v = vertical (turning the body hardly changes it)   w = width (shrinks when turned)
-#   a = arm (moves a lot, last resort)                  face = Haar face box width
-BODY_PARTS = {
-    "torso":       ((5, 6), (11, 12), "v"),     # shoulders -> hips
-    "neck":        ((1, 2), (5, 6), "v"),       # eyes -> shoulders
-    "thigh":       ((11, 12), (13, 14), "v"),
-    "shin":        ((13, 14), (15, 16), "v"),
-    "shoulders":   ((5,), (6,), "w"),
-    "hips":        ((11,), (12,), "w"),
-    "ears":        ((3,), (4,), "w"),
-    "eyes":        ((1,), (2,), "w"),
-    "upper_arm_l": ((5,), (7,), "a"),
-    "upper_arm_r": ((6,), (8,), "a"),
-    "forearm_l":   ((7,), (9,), "a"),
-    "forearm_r":   ((8,), (10,), "a"),
-}
-PART_LABEL = {"torso": "torso", "neck": "head+neck", "face": "face", "thigh": "legs",
-              "shin": "legs", "shoulders": "shoulders", "hips": "hips", "ears": "head",
-              "eyes": "head", "upper_arm_l": "arm", "upper_arm_r": "arm",
-              "forearm_l": "arm", "forearm_r": "arm"}
-PART_PRIORITY = ["torso", "neck", "face", "thigh", "shin", "shoulders", "hips", "ears",
-                 "eyes", "upper_arm_l", "upper_arm_r", "forearm_l", "forearm_r"]
-
-
-def parse_pose(output, ratio, pad_x, pad_y, conf_thr=POSE_CONF, nms_thr=NMS_THRESHOLD):
-    """Turns a raw YOLOv8-pose ONNX output (1 x 56 x N: box, score, 17 x (x, y, conf))
-    into [{x1, y1, x2, y2, conf, kps}] in ORIGINAL frame coordinates. kps is 17 x 3."""
-    preds = np.squeeze(np.asarray(output))
-    if preds.ndim != 2:
-        return []
-    if preds.shape[0] < preds.shape[1]:
-        preds = preds.T                      # -> (N, 56)
-    if preds.shape[1] < 56:
-        return []
-    scores = preds[:, 4]
-    keep = scores >= conf_thr
-    if not np.any(keep):
-        return []
-    preds, scores = preds[keep], scores[keep]
-    cx, cy, bw, bh = preds[:, 0], preds[:, 1], preds[:, 2], preds[:, 3]
-    x1 = (cx - bw / 2 - pad_x) / ratio
-    y1 = (cy - bh / 2 - pad_y) / ratio
-    x2 = (cx + bw / 2 - pad_x) / ratio
-    y2 = (cy + bh / 2 - pad_y) / ratio
-    kps = preds[:, 5:56].reshape(-1, 17, 3).astype(np.float64)
-    kps[:, :, 0] = (kps[:, :, 0] - pad_x) / ratio
-    kps[:, :, 1] = (kps[:, :, 1] - pad_y) / ratio
-    nms_boxes = [[int(a), int(b), int(c - a), int(d - b)]
-                 for a, b, c, d in zip(x1, y1, x2, y2)]
-    idxs = cv2.dnn.NMSBoxes(nms_boxes, scores.astype(float).tolist(), conf_thr, nms_thr)
-    idxs = np.array(idxs).flatten() if len(idxs) else []
-    return [{"x1": float(x1[i]), "y1": float(y1[i]), "x2": float(x2[i]),
-             "y2": float(y2[i]), "conf": float(scores[i]), "kps": kps[i]} for i in idxs]
-
-
 class DistanceEstimator:
     def __init__(self, get_frame, is_page_active, simulate, base_dir):
         self.get_frame = get_frame
@@ -271,14 +196,6 @@ class DistanceEstimator:
         self._face_live = None              # face width (cm) refined while running
         self._warned_size = False
         self._face_tick = 0
-
-        self.pose_net = None                # YOLOv8-pose (None = not available)
-        self.pose_ok = False
-        self.pose_error = None
-        self._pose_tick = 0
-        self._pose_cache = None             # (timestamp, persons)
-        self._seg_live = {}                 # part ratios refined while running
-        self._seg_seed = {}
 
     # ---------------------------------------------------------------- settings
     def _load_settings(self):
@@ -329,15 +246,12 @@ class DistanceEstimator:
         with self._lock:
             self._settings.update(focal_px=None, cal_width=None, cal_height=None,
                                   known_distance_cm=None, calibrated_at=None,
-                                  cal_aspect=None, cal_face_cm=None, cal_seg=None)
+                                  cal_aspect=None, cal_face_cm=None)
             self._save_settings()
         self._reset_history()
 
     def _reset_history(self):
         self._face_live = None
-        self._seg_live = {}
-        self._seg_seed = {}
-        self._pose_cache = None
         self._hist_moving.clear()
         self._hist_raw.clear()
         self._last_moving = None
@@ -392,7 +306,6 @@ class DistanceEstimator:
     def _load_model(self):
         self._model_tried = True
         self._load_face()
-        self._load_pose()
         if self.simulate:
             self.model_ok = True
             return
@@ -447,10 +360,10 @@ class DistanceEstimator:
     # ------------------------------------------- part-aware measuring (person)
     @staticmethod
     def _part_aware(s):
-        """True for a person measured by height. The typed size may be anything (63 cm
-        for an upper-body box is fine): it cancels out of the close-up formula, which
-        works with part-to-box ratios learned at calibration."""
-        return s["class_id"] == 0 and s["dimension"] == "height"
+        """True when a person is measured by height AND the typed size looks like a
+        full standing height. Only then can a box be judged 'whole body or part'."""
+        return (s["class_id"] == 0 and s["dimension"] == "height"
+                and PERSON_MIN_CM <= s["real_size_cm"] <= PERSON_MAX_CM)
 
     def _check_size(self, s):
         if (s["class_id"] == 0 and s["dimension"] == "height" and not self._part_aware(s)
@@ -512,8 +425,7 @@ class DistanceEstimator:
             return [d for d in dets if d["conf"] >= CONF_THRESHOLD]
         h, w = frame.shape[:2]
         self._face_tick += 1
-        periodic = (self._face_tick % FACE_LEARN_EVERY == 0
-                    or time.time() < self._demand_until)
+        periodic = self._face_tick % FACE_LEARN_EVERY == 0
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if dets else None
         kept = []
         for i, d in enumerate(sorted(dets, key=lambda d: d["conf"], reverse=True)):
@@ -553,193 +465,6 @@ class DistanceEstimator:
             return                                            # outlier, ignore
         new = (1.0 - FACE_LEARN_ALPHA) * cur + FACE_LEARN_ALPHA * implied
         self._face_live = min(FACE_MAX_CM, max(FACE_MIN_CM, new))
-
-    # ------------------------------------------------------ body-part rulers
-    def _load_pose(self):
-        """Optional pose model. Without it only the Haar face ruler exists."""
-        self.pose_net, self.pose_ok = None, False
-        if self.simulate or not POSE_ENABLED:
-            return
-        path = os.path.join(self.base_dir, "models", POSE_MODEL)
-        if not os.path.exists(path):
-            self.pose_error = ("models/%s not found - run export_pose_model.py for "
-                               "reliable close-up measuring (optional)" % POSE_MODEL)
-            print("distance:", self.pose_error)
-            return
-        try:
-            self.pose_net = cv2.dnn.readNetFromONNX(path)
-            self.pose_ok, self.pose_error = True, None
-            print("distance: pose model loaded")
-        except Exception as exc:
-            self.pose_error = "could not load pose model: %s" % exc
-            print("distance:", self.pose_error)
-
-    def _run_pose(self, frame):
-        canvas, ratio, pad_x, pad_y = _letterbox(frame, POSE_INPUT)
-        blob = cv2.dnn.blobFromImage(canvas, 1 / 255.0, (POSE_INPUT, POSE_INPUT),
-                                     swapRB=True, crop=False)
-        self.pose_net.setInput(blob)
-        return parse_pose(self.pose_net.forward(), ratio, pad_x, pad_y)
-
-    @staticmethod
-    def _iou(a, b):
-        ix = max(0.0, min(a["x2"], b["x2"]) - max(a["x1"], b["x1"]))
-        iy = max(0.0, min(a["y2"], b["y2"]) - max(a["y1"], b["y1"]))
-        inter = ix * iy
-        union = ((a["x2"] - a["x1"]) * (a["y2"] - a["y1"])
-                 + (b["x2"] - b["x1"]) * (b["y2"] - b["y1"]) - inter)
-        return inter / union if union > 0 else 0.0
-
-    def _attach_pose(self, frame, dets, s, w, h):
-        """Adds det["kps"] (17 keypoints) to the person boxes. A person the pose model
-        sees but the box detector missed (typical when you are too close) is added as
-        a box of its own. The pose model is not run on every pass to save CPU."""
-        if self.pose_net is None or not self._part_aware(s):
-            return dets
-        self._pose_tick += 1
-        now = time.time()
-        calibrating = now < self._demand_until
-        cache = self._pose_cache
-        fresh = cache is not None and now - cache[0] <= POSE_CACHE_SECONDS
-        if not dets and not calibrating:
-            need = self._pose_tick % POSE_IDLE_EVERY == 0
-        else:
-            need = (calibrating or not fresh or self._pose_tick % POSE_EVERY == 0
-                    or any(not self._clearly_whole(d, s, w, h) for d in dets))
-        if need:
-            try:
-                persons = self._run_pose(frame)
-            except Exception as exc:
-                print("distance: pose error:", exc)
-                persons = []
-            self._pose_cache = (now, persons)
-        else:
-            persons = cache[1] if fresh else []
-
-        used = set()
-        for d in dets:
-            best, bi = 0.0, -1
-            for i, p in enumerate(persons):
-                v = self._iou(d, p)
-                if v > best:
-                    best, bi = v, i
-            if bi >= 0 and best >= POSE_MATCH_IOU:
-                d["kps"] = persons[bi]["kps"]
-                used.add(bi)
-        if need:                                       # only add from a fresh pass
-            gray = None
-            for i, p in enumerate(persons):
-                if i in used or p["conf"] < POSE_NEW_CONF:
-                    continue
-                if any(self._iou(d, p) >= 0.10 for d in dets):
-                    continue
-                nd = {"x1": p["x1"], "y1": p["y1"], "x2": p["x2"], "y2": p["y2"],
-                      "conf": p["conf"], "kps": p["kps"], "face": None}
-                if self.face_cc is not None:
-                    if gray is None:
-                        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                    nd["face"] = self._find_face(gray, nd)
-                dets.append(nd)
-        return dets
-
-    @staticmethod
-    def _pose_parts(kps, w, h):
-        """Pixel length of every body part whose two ends are both visible."""
-        mx, my = KP_EDGE_FRAC * w, KP_EDGE_FRAC * h
-
-        def visible(i):
-            x, y, c = kps[i]
-            return c >= KP_CONF and mx <= x <= w - mx and my <= y <= h - my
-
-        def point(group):
-            pts = [(kps[i][0], kps[i][1]) for i in group if visible(i)]
-            if not pts:
-                return None
-            return (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
-
-        out = {}
-        for name, (ga, gb, kind) in BODY_PARTS.items():
-            a, b = point(ga), point(gb)
-            if a is None or b is None:
-                continue
-            if kind in ("w", "a") and (len(ga) != 1 or len(gb) != 1):
-                continue
-            length = math.hypot(a[0] - b[0], a[1] - b[1])
-            if length >= PART_MIN_PX:
-                out[name] = float(length)
-        return out
-
-    def _part_pixels(self, det, w, h):
-        """{part: pixel length} for everything measurable on this person box."""
-        parts = {}
-        face = det.get("face")
-        if face:
-            fw = face["x2"] - face["x1"]
-            if fw >= PART_MIN_PX:
-                parts["face"] = float(fw)
-        kps = det.get("kps")
-        if kps is not None:
-            parts.update(self._pose_parts(kps, w, h))
-        return parts
-
-    def _part_ratio(self, s, name):
-        """part_px / box_px learned at calibration (refined live), or None."""
-        return self._seg_live.get(name) or (s.get("cal_seg") or {}).get(name)
-
-    @staticmethod
-    def _combine_parts(cands):
-        """cands: [(name, kind, distance_cm, part_px)] -> (label, cm, px, approx) or None.
-        Vertical parts + face: median of their estimates. Only widths (or only arms):
-        the SMALLEST distance wins, because turning the body makes a width look
-        shorter, i.e. the person look farther than they are. Widths/arms are approx."""
-        if not cands:
-            return None
-        good = [c for c in cands if c[1] in ("v", "f")]
-        if good:
-            pool, dist, approx = good, float(np.median([c[2] for c in good])), False
-        else:
-            wide = [c for c in cands if c[1] == "w"]
-            arms = [c for c in cands if c[1] == "a"]
-            pool = wide or arms
-            if not pool:
-                return None
-            dist, approx = float(min(c[2] for c in pool)), True
-        order = {n: i for i, n in enumerate(PART_PRIORITY)}
-        best = min(pool, key=lambda c: order.get(c[0], 99))
-        return PART_LABEL.get(best[0], best[0]), dist, float(best[3]), approx
-
-    def _pick_part(self, parts, s, w):
-        f = self._focal_at(s, w)
-        if not f or not parts:
-            return None
-        cands = []
-        for name, px in parts.items():
-            r = self._part_ratio(s, name)
-            if not r or px < PART_MIN_PX:
-                continue
-            kind = "f" if name == "face" else BODY_PARTS[name][2]
-            cands.append((name, kind, s["real_size_cm"] * f * r / px, px))
-        return self._combine_parts(cands)
-
-    def _learn_parts(self, summ, s):
-        """Whole box inside the frame + parts seen together = trustworthy ratios.
-        This keeps the reading continuous when you then walk up to the camera."""
-        if (not summ or summ.get("side") != "height" or summ.get("any_clipped")
-                or not summ.get("segs") or not self._part_aware(s) or summ["px"] <= 1):
-            return
-        body = summ["px"]
-        saved = s.get("cal_seg") or {}
-        for name, px in summ["segs"].items():
-            obs = px / body
-            cur = self._seg_live.get(name) or saved.get(name)
-            if cur:
-                if 0.75 * cur <= obs <= 1.30 * cur:
-                    self._seg_live[name] = (1.0 - PART_LEARN_ALPHA) * cur + PART_LEARN_ALPHA * obs
-            elif 0.02 <= obs <= 1.2:
-                seed = self._seg_seed.setdefault(name, deque(maxlen=5))
-                seed.append(obs)
-                if len(seed) >= PART_SEED_SAMPLES:
-                    self._seg_live[name] = float(np.median(seed))
 
     def _motion_mask(self, frame, now):
         small = cv2.resize(frame, (160, 120), interpolation=cv2.INTER_AREA)
@@ -862,22 +587,9 @@ class DistanceEstimator:
         size_cm, side, face_px = s["real_size_cm"], main, None
         other_cm = self._other_size_cm(s)
 
-        part_dist, part_approx, parts = None, False, {}
         if self._part_aware(s):
-            # A person measured by height. The box is trusted while it is the same kind
-            # of box that was calibrated (inside the frame, not far wider than it was).
-            # When the frame cuts it, use the body parts that are still visible.
-            parts = self._part_pixels(det, w, h)
-            exp_aspect = s.get("cal_aspect") or DEFAULT_PERSON_ASPECT
-            wide = bool(aspect and aspect >= exp_aspect * PARTIAL_ASPECT_FACTOR)
-            if (not clip_y) and not wide:
-                px, size_cm, side, clipped = bh, s["real_size_cm"], "height", False
-            else:
-                px, size_cm, side, clipped = bh, None, "height", True
-                pick = self._pick_part(parts, s, w)
-                if pick:
-                    side, part_dist, px, part_approx = pick
-                    clipped = False
+            px, size_cm, side, clipped, face_px = self._pick_ruler(
+                det, s, bw, bh, clip_x, clip_y, aspect, other_cm)
         elif clipped and not other_clipped and other_cm:
             # Main side is cut off by the frame but the other side is fully
             # visible: measure with the other side instead.
@@ -885,19 +597,14 @@ class DistanceEstimator:
             side = "width" if main == "height" else "height"
             clipped = False
 
-        if part_dist is not None:
-            dist = part_dist
-        else:
-            dist = self._raw_distance(px, w, s, size_cm) if size_cm else None
+        dist = self._raw_distance(px, w, s, size_cm) if size_cm else None
         return {"bbox": [x1, y1, x2 - x1, y2 - y1], "px": float(px),
                 "conf": det.get("conf", 1.0), "clipped": bool(clipped),
                 "side": side,
                 "any_clipped": bool(clip_x or clip_y),
                 "aspect": aspect,
-                "face_px": None,
-                "segs": {k: round(float(v), 1) for k, v in parts.items()},
-                "approx": bool(part_approx
-                               or (side == "width" and size_cm and side != main)),
+                "face_px": face_px,
+                "approx": bool(side == "width" and size_cm and side != main),
                 "motion": det.get("motion", 0.0),
                 "dist_inst": dist,
                 "distance_cm": dist}
@@ -919,7 +626,6 @@ class DistanceEstimator:
             self._check_size(s)
             dets = self._attach_faces(
                 frame, self._detect(frame, s["class_id"], self._host_conf(s)), s)
-            dets = self._attach_pose(frame, dets, s, w, h)
             raw = max(dets, key=lambda d: d["conf"]) if dets else None
             moving = None
             if mask is not None:
@@ -956,7 +662,6 @@ class DistanceEstimator:
         if raw_sum:
             self._last_raw_ts = now
             self._learn_face(raw_sum, s, w)
-            self._learn_parts(raw_sum, s)
         elif now - self._last_raw_ts > RESULT_HOLD_SECONDS:
             self._hist_raw.clear()
 
@@ -1045,7 +750,6 @@ class DistanceEstimator:
 
         self._demand_until = time.time() + CALIBRATION_TIMEOUT + 3
         samples, aspects, faces, last_ts = [], [], [], 0.0
-        part_obs = []                       # (box px, {part: px}) per good sample
         frame_w = frame_h = None
         deadline = time.time() + CALIBRATION_TIMEOUT
         while time.time() < deadline and len(samples) < CALIBRATION_SAMPLES:
@@ -1061,7 +765,6 @@ class DistanceEstimator:
                     aspects.append(raw["aspect"])
                     if raw.get("face_px"):
                         faces.append(raw["face_px"])
-                    part_obs.append((raw["px"], raw.get("segs") or {}))
                     frame_w, frame_h = res["frame_w"], res["frame_h"]
             time.sleep(0.05)
 
@@ -1086,26 +789,16 @@ class DistanceEstimator:
             cand = float(np.median(faces)) * s["real_size_cm"] / median
             if FACE_MIN_CM <= cand <= FACE_MAX_CM:
                 face_cm = cand
-        # size of every visible body part relative to the calibration box
-        seg_cal = {}
-        for name in {n for _, d in part_obs for n in d}:
-            rs = [d[name] / p for p, d in part_obs if name in d and p > 1]
-            if len(rs) >= max(3, len(part_obs) // 3):
-                r = float(np.median(rs))
-                if 0.02 <= r <= 1.2:
-                    seg_cal[name] = r
         with self._lock:
             self._settings.update(
                 focal_px=focal, cal_width=frame_w, cal_height=frame_h,
                 known_distance_cm=known, cal_aspect=aspect, cal_face_cm=face_cm,
-                cal_seg=seg_cal or None,
                 calibrated_at=datetime.now().isoformat(timespec="seconds"))
             self._save_settings()
         self._reset_history()
         return {"focal_px": focal, "pixel_size": median, "samples": len(core),
                 "spread_pct": spread * 100, "frame_w": frame_w, "frame_h": frame_h,
-                "face_cm": face_cm,
-                "parts": sorted(seg_cal), "pose_ok": self.pose_ok}
+                "face_cm": face_cm}
 
     # --------------------------------------------------------------- status
     def live(self):
@@ -1118,7 +811,6 @@ class DistanceEstimator:
             "fresh": fresh,
             "fps": round(self._fps, 1),
             "calibrated": bool(s["focal_px"]),
-            "pose_ok": self.pose_ok,
             "model_ok": self.model_ok,
             "model_error": self.model_error,
             "simulate": self.simulate,

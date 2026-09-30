@@ -265,8 +265,7 @@
       el.readValue.textContent = fmtCm(raw.distance_cm);
       el.readSub.textContent = "box " + raw.px.toFixed(0) + " px" +
         (raw.side ? " (" + raw.side + ")" : "") +
-        (raw.clipped ? " · too close: no body part I can measure with - step back" : "") +
-        (raw.approx && !raw.clipped ? " · approximate" : "") +
+        (raw.clipped ? " · cut off by the frame edge, unreliable" : "") +
         " · confidence " + Math.round(raw.conf * 100) + "%";
     }
 
