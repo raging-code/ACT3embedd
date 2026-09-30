@@ -303,7 +303,10 @@ def stamp_timestamp(frame):
 
 
 def capture_frame():
-    """Grab a frame from the webcam and save it to disk. Returns the filename."""
+    """Grab a frame from the webcam and save it to disk. Returns the filename.
+    Superseded by record_clip_camera() for the live motion trigger (Fig. 3.1
+    now records video, not a single snapshot) -- kept here in case anything
+    else still calls it directly."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"motion_{timestamp}.jpg"
     filepath = os.path.join(CAPTURE_DIR, filename)
@@ -318,6 +321,88 @@ def capture_frame():
         return None
     cv2.imwrite(filepath, stamp_timestamp(frame))
     return filename
+
+
+def record_clip_camera(seconds=RECORDING_SECONDS, fps=RECORDING_FPS):
+    """Records a short video clip for Fig. 3.1 by grabbing frames for
+    `seconds` and writing them out with OpenCV's VideoWriter, the same way
+    record_clip() does for Fig. 3.3 -- except this one saves into
+    CAPTURE_DIR (Fig. 3.1's own directory) rather than RECORDING_DIR, so the
+    two dashboards' clips never mix. Runs on the calling thread -- callers
+    that don't want to block should use record_clip_camera_async()."""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"motion_{timestamp}.mp4"
+    filepath = os.path.join(CAPTURE_DIR, filename)
+
+    def _motion_still_active():
+        with state_lock:
+            return bool(system_state.get("motion_detected"))
+
+    if SIMULATE:
+        writer = cv2.VideoWriter(
+            filepath, cv2.VideoWriter_fourcc(*"mp4v"), fps, (640, 480)
+        )
+        if not writer.isOpened():
+            print("record_clip_camera: VideoWriter failed to open (simulated clip)")
+            return None
+        frame_interval = 1 / fps
+        clip_start = time.time()
+        while True:
+            loop_start = time.time()
+            writer.write(stamp_timestamp(_simulated_frame(label="CAPTURE")))
+            elapsed_frame = time.time() - loop_start
+            time.sleep(max(0.0, frame_interval - elapsed_frame))
+            elapsed_total = time.time() - clip_start
+            if elapsed_total >= seconds and not _motion_still_active():
+                break
+        writer.release()
+        transcode_to_h264(filepath)
+        return filename
+
+    probe = grab_frame()
+    if probe is None:
+        return None
+    h, w = probe.shape[:2]
+    writer = cv2.VideoWriter(
+        filepath, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h)
+    )
+    if not writer.isOpened():
+        print("record_clip_camera: VideoWriter failed to open -- check OpenCV's video codec support")
+        return None
+    writer.write(stamp_timestamp(probe))
+
+    frame_interval = 1 / fps
+    clip_start = time.time()
+    while True:
+        loop_start = time.time()
+        frame = grab_frame()
+        if frame is not None:
+            writer.write(stamp_timestamp(frame))
+        elapsed_frame = time.time() - loop_start
+        time.sleep(max(0.0, frame_interval - elapsed_frame))
+
+        elapsed_total = time.time() - clip_start
+        if elapsed_total >= seconds and not _motion_still_active():
+            break
+
+    writer.release()
+    transcode_to_h264(filepath)
+    if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+        print(f"record_clip_camera: {filename} ended up empty -- something went wrong writing it")
+        return None
+    return filename
+
+
+def record_clip_camera_async(on_done, seconds=RECORDING_SECONDS):
+    """Fires record_clip_camera() on a background thread so the sensor loop
+    isn't blocked for the clip's whole duration, then calls `on_done(filename)`
+    (filename may be None on failure) once it finishes."""
+
+    def _run():
+        filename = record_clip_camera(seconds=seconds)
+        on_done(filename)
+
+    threading.Thread(target=_run, daemon=True).start()
 
 
 def transcode_to_h264(filepath):
@@ -566,33 +651,37 @@ def sensor_loop():
                 # discarded until it drops back to idle (motion_active=False)
                 # and trips again.
                 motion_active = True
-                filename = capture_frame()
+                trigger_ts = datetime.now().isoformat(timespec="seconds")
 
-                # Buzzer + video recording are a Fig. 3.3-only behavior --
-                # only fire them while someone actually has the buzzer.html
-                # dashboard open. Fig. 3.1 (camera.html) still gets its
-                # snapshot and event-log entry either way, exactly as before.
-                fig33_watching = is_page_active("buzzer")
-                if fig33_watching:
-                    sound_buzzer()
-                    record_clip_async()
-
-                event = {
-                    "timestamp": datetime.now().isoformat(timespec="seconds"),
-                    "file": filename,
-                }
                 with state_lock:
                     system_state["motion_detected"] = True
-                    system_state["last_motion_at"] = event["timestamp"]
-                    system_state["total_events"] += 1
-                    if filename:
-                        system_state["last_capture_file"] = filename
-                event_log.appendleft(event)
-                persist_state_log()
-                if fig33_watching:
-                    print(f"[{event['timestamp']}] Motion detected -> {filename} (buzzer sounded, recording >= {RECORDING_SECONDS}s clip)")
-                else:
-                    print(f"[{event['timestamp']}] Motion detected -> {filename} (Fig. 3.1 only -- buzzer/recording skipped)")
+                    system_state["last_motion_at"] = trigger_ts
+
+                # Fig. 3.1 now records a motion-triggered video clip (same
+                # clip-recording path as Fig. 3.3), independent of the
+                # buzzer/page-active gating -- it fires on every trigger
+                # the same way the old snapshot capture did. The event log
+                # entry is appended once the clip finishes (several
+                # seconds later) rather than immediately, since recording
+                # is no longer a single synchronous frame grab.
+                def _on_camera_clip_done(filename, ts=trigger_ts):
+                    event = {"timestamp": ts, "file": filename}
+                    with state_lock:
+                        system_state["total_events"] += 1
+                        if filename:
+                            system_state["last_capture_file"] = filename
+                    event_log.appendleft(event)
+                    persist_state_log()
+                    print(f"[{ts}] Motion detected -> {filename} (Fig. 3.1 video clip, >= {RECORDING_SECONDS}s)")
+
+                record_clip_camera_async(_on_camera_clip_done)
+
+                # Buzzer + Fig. 3.3's own recording are unchanged -- only
+                # fire while someone actually has the buzzer.html dashboard
+                # open.
+                if is_page_active("buzzer"):
+                    sound_buzzer()
+                    record_clip_async()
             elif is_motion_now and motion_active:
                 # Motion continues from the same streak -- keep
                 # motion_detected true (record_clip() reads this to decide
@@ -697,7 +786,7 @@ def api_gallery():
     with state_lock:
         camera_ok = system_state["camera_ok"]
     files = sorted(
-        (f for f in os.listdir(CAPTURE_DIR) if f.lower().endswith((".jpg", ".jpeg", ".png"))),
+        (f for f in os.listdir(CAPTURE_DIR) if f.lower().endswith(".mp4")),
         reverse=True,
     )[:30]
     return jsonify({"files": files, "camera_ok": camera_ok})
@@ -745,7 +834,7 @@ def api_events():
             if ts < cutoff:
                 continue
             image_file = evt.get("file")
-            stamp = stamp_of(image_file, ".jpg") or evt["timestamp"]
+            stamp = stamp_of(image_file, ".mp4") or evt["timestamp"]
             entry = by_stamp.setdefault(stamp, {"t": dt.strftime("%H:%M:%S"), "ts": ts, "file_image": None, "file_video": None})
             if image_file and os.path.exists(os.path.join(CAPTURE_DIR, image_file)):
                 entry["file_image"] = image_file
@@ -770,7 +859,7 @@ def api_events():
             # files, not a snapshot borrowed from an unrelated Fig. 3.1
             # session
             if entry["file_image"] is None:
-                candidate = f"motion_{stamp}.jpg"
+                candidate = f"motion_{stamp}.mp4"
                 if os.path.exists(os.path.join(CAPTURE_DIR, candidate)):
                     entry["file_image"] = candidate
 

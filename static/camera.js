@@ -1,4 +1,7 @@
 /* Perimeter — Camera Watch (Fig. 3.1-3.2): dashboard logic
+   Fig. 3.1 now records a short motion-triggered VIDEO clip instead of a
+   single snapshot (matching Fig. 3.3's clip gallery), independent of the
+   buzzer/page-active gating Fig. 3.3 uses for its own recording.
    Polls /api/status every second and updates the console in place.
 
    Perf notes (2026-09-21 optimization pass):
@@ -182,7 +185,7 @@ async function poll() {
 }
 
 function timeLabelFor(filename) {
-  // filenames look like motion_20260918_025309.jpg — pull a readable time out of it
+  // filenames look like motion_20260918_025309.mp4 — pull a readable time out of it
   const match = filename.match(/(\d{2})(\d{2})(\d{2})\.\w+$/);
   return match ? `${match[1]}:${match[2]}:${match[3]}` : "";
 }
@@ -205,17 +208,19 @@ function renderGallery(files) {
 
   if (!files.length) {
     el.galleryStrip.innerHTML =
-      '<p class="gallery-empty" id="galleryEmpty">Snapshots taken on motion will appear here.</p>';
+      '<p class="gallery-empty" id="galleryEmpty">Clips recorded on motion will appear here.</p>';
     return;
   }
 
-  // Only the latest capture is shown inline; the rest are one click away
-  // via "View all".
+  // Only the latest clip is shown inline; the rest are one click away via
+  // "View all".
   const filename = files[0];
   const timeLabel = timeLabelFor(filename);
   el.galleryStrip.innerHTML = `
     <div class="gallery-shot" title="${filename}">
-      <img src="/captures/${filename}" alt="Motion capture ${filename}" loading="lazy">
+      <video src="/captures/${filename}" muted loop playsinline preload="metadata"
+             onloadedmetadata="this.currentTime = 0.1"
+             onmouseenter="this.play()" onmouseleave="this.pause(); this.currentTime = 0.1;"></video>
       <span class="gallery-shot-time">${timeLabel}</span>
     </div>`;
   const shot = el.galleryStrip.querySelector(".gallery-shot");
@@ -224,7 +229,7 @@ function renderGallery(files) {
 
 function renderGalleryAll() {
   if (!latestGalleryFiles.length) {
-    el.galleryAllList.innerHTML = '<p class="gallery-empty">Snapshots taken on motion will appear here.</p>';
+    el.galleryAllList.innerHTML = '<p class="gallery-empty">Clips recorded on motion will appear here.</p>';
     return;
   }
   el.galleryAllList.innerHTML = latestGalleryFiles
@@ -232,7 +237,9 @@ function renderGalleryAll() {
       const timeLabel = timeLabelFor(filename);
       return `
         <div class="gallery-all-row" data-filename="${filename}" title="${filename}">
-          <img src="/captures/${filename}" alt="Motion capture ${filename}" loading="lazy">
+          <video src="/captures/${filename}" muted loop playsinline preload="metadata"
+                 onloadedmetadata="this.currentTime = 0.1"
+                 onmouseenter="this.play()" onmouseleave="this.pause(); this.currentTime = 0.1;"></video>
           <span class="gallery-shot-time">${timeLabel}</span>
         </div>`;
     })
