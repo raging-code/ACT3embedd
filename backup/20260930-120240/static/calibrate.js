@@ -103,135 +103,28 @@
     }).catch(function () { setMsg(el.saveMsg, "Server not reachable.", "fail"); });
   });
 
-  // ---- calibration with a countdown --------------------------------------
-  // Press "Calibrate now" -> 10 s countdown (shown on the live view, with
-  // beeps for the last 3 s) so you can walk the object to the measured
-  // distance -> then the measurement is taken and the calibration saved.
-  var COUNTDOWN_SECONDS = 10;
-  var calState = "idle";            // idle | counting | measuring
-  var countdownTimer = null;
-  var audioCtx = null;
-  var cdBox = $("calCountdown");
-  var cdNum = $("calCountdownNum");
-  var cdTxt = $("calCountdownTxt");
-
-  function beep(freq, ms) {
-    try {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      var osc = audioCtx.createOscillator();
-      var gain = audioCtx.createGain();
-      osc.frequency.value = freq;
-      gain.gain.value = 0.08;
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + ms / 1000);
-    } catch (e) { /* sound is optional */ }
-  }
-
-  function showCountdown(num, txt) {
-    if (!cdBox) return;
-    cdBox.className = "cal-countdown show";
-    cdNum.textContent = num;
-    cdTxt.textContent = txt;
-  }
-
-  function hideCountdown() {
-    if (cdBox) cdBox.className = "cal-countdown";
-  }
-
-  function setCalState(state) {
-    calState = state;
-    if (state === "idle") {
-      el.calBtn.disabled = false;
-      el.calBtn.textContent = "Calibrate now";
-    } else if (state === "counting") {
-      el.calBtn.disabled = false;
-      el.calBtn.textContent = "Cancel countdown";
-    } else {
-      el.calBtn.disabled = true;
-      el.calBtn.textContent = "Measuring…";
-    }
-  }
-
-  function targetPayload() {
-    return {
+  el.calBtn.addEventListener("click", function () {
+    var dist = parseFloat(el.distInput.value);
+    if (!dist) { setMsg(el.calMsg, "Enter the known distance first.", "fail"); return; }
+    el.calBtn.disabled = true;
+    setMsg(el.calMsg, "Measuring… keep the object still.");
+    // save the target first so the calibration uses what is on screen
+    jsonPost("/api/calibration/settings", {
       class_id: parseInt(el.classSelect.value, 10),
       dimension: el.dimSelect.value,
       real_size_cm: parseFloat(el.sizeInput.value)
-    };
-  }
-
-  function measureAndSave(dist) {
-    setCalState("measuring");
-    showCountdown("•", "Hold still - measuring…");
-    setMsg(el.calMsg, "Measuring… keep the object still.");
-    beep(1200, 350);
-    // save the target first so the calibration uses what is on screen
-    jsonPost("/api/calibration/settings", targetPayload()).then(function (saved) {
+    }).then(function (saved) {
       if (!saved.ok) throw new Error(saved.data.error || "Invalid target settings.");
       return jsonPost("/api/calibration/run", { known_distance_cm: dist });
     }).then(function (r) {
       if (!r.ok) throw new Error(r.data.error || "Calibration failed.");
       var res = r.data.result;
-      setMsg(el.calMsg, "Saved: object measured " + res.pixel_size.toFixed(0) + " px from " +
+      setMsg(el.calMsg, "Done: object measured " + res.pixel_size.toFixed(0) + " px from " +
         res.samples + " samples (spread " + res.spread_pct.toFixed(1) + "%).", "ok");
       renderCalStatus(r.data.settings);
-      beep(1600, 200);
     }).catch(function (err) {
       setMsg(el.calMsg, err.message || "Calibration failed.", "fail");
-    }).then(function () {
-      hideCountdown();
-      setCalState("idle");
-    });
-  }
-
-  function startCountdown(dist) {
-    setCalState("counting");
-    var endAt = Date.now() + COUNTDOWN_SECONDS * 1000;
-    var lastShown = null;
-
-    function tick() {
-      var remaining = Math.ceil((endAt - Date.now()) / 1000);
-      if (remaining <= 0) {
-        clearInterval(countdownTimer);
-        countdownTimer = null;
-        measureAndSave(dist);
-        return;
-      }
-      if (remaining !== lastShown) {
-        lastShown = remaining;
-        showCountdown(remaining, "Move the object to " + dist + " cm from the camera, then hold still");
-        setMsg(el.calMsg, "Move the object to " + dist + " cm from the lens. Measuring starts in " + remaining + " s…");
-        if (remaining <= 3) beep(880, 120);
-      }
-    }
-    countdownTimer = setInterval(tick, 200);
-    tick();
-  }
-
-  function cancelCountdown() {
-    if (countdownTimer) clearInterval(countdownTimer);
-    countdownTimer = null;
-    hideCountdown();
-    setCalState("idle");
-    setMsg(el.calMsg, "Countdown cancelled.");
-  }
-
-  el.calBtn.addEventListener("click", function () {
-    if (calState === "counting") { cancelCountdown(); return; }
-    if (calState !== "idle") return;
-    var dist = parseFloat(el.distInput.value);
-    if (!dist || dist < 20 || dist > 3000) {
-      setMsg(el.calMsg, "Enter the known distance first (20-3000 cm).", "fail");
-      return;
-    }
-    if (!parseFloat(el.sizeInput.value)) {
-      setMsg(el.calMsg, "Enter the object's real size first.", "fail");
-      return;
-    }
-    beep(660, 80);      // also unlocks browser audio (needs a click)
-    startCountdown(dist);
+    }).then(function () { el.calBtn.disabled = false; });
   });
 
   el.resetBtn.addEventListener("click", function () {

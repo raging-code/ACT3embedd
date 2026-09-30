@@ -1319,34 +1319,3 @@ select.cal-input option { color: #111; background: #fff; }
   line-height: 1.6;
   color: var(--text-dim);
 }
-
-/* === cal-countdown (added by fig31-calibration-countdown.mjs) ============ */
-
-.cal-countdown {
-  position: absolute;
-  inset: 0;
-  z-index: 6;
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  padding: 0 12px 5%;
-  text-align: center;
-  pointer-events: none;
-}
-.cal-countdown.show { display: flex; }
-.cal-countdown-num {
-  font-family: var(--grot);
-  font-weight: 800;
-  font-size: clamp(48px, 11vw, 110px);
-  line-height: 1;
-  color: var(--signal);
-  text-shadow: 0 2px 6px rgba(0,0,0,0.8), 0 6px 28px rgba(0,0,0,0.6);
-}
-.cal-countdown-txt {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  text-shadow: 0 1px 6px rgba(0,0,0,0.9);
-}

@@ -2,9 +2,9 @@
   "class_id": 0,
   "dimension": "height",
   "real_size_cm": 63.0,
-  "focal_px": null,
-  "cal_width": null,
-  "cal_height": null,
-  "known_distance_cm": null,
-  "calibrated_at": null
+  "focal_px": 760.8240311637758,
+  "cal_width": 640,
+  "cal_height": 480,
+  "known_distance_cm": 143.0,
+  "calibrated_at": "2026-09-30T12:04:25"
 }
