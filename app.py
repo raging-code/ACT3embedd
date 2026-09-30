@@ -31,7 +31,7 @@ from flask import Flask, jsonify, send_from_directory, render_template, Response
 # --------------------------------------------------------------------------
 
 PIR_PIN = 4                 # BCM GPIO pin connected to the PIR sensor's OUT wire
-BUZZER_PIN = 23             # BCM GPIO pin connected to the active buzzer's +/signal wire
+BUZZER_PIN = 22            # BCM GPIO pin connected to the active buzzer's +/signal wire
                              # (moved from 17 -> 23: this app now shares a Pi 5
                              # with act4embed, whose LED is on GPIO17)
 BUZZER_ON_SECONDS = 1.5     # how long the buzzer sounds per motion trigger
