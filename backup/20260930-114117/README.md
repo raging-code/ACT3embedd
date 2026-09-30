@@ -106,17 +106,3 @@ All of the following are set near the top of `app.py`:
 - This uses Flask's built-in development server, which is fine for a
   lab/home setup on a local network. For anything exposed beyond your
   LAN, put it behind a proper WSGI server (e.g. gunicorn) first.
-
-
-## Camera-only distance (cm)
-
-Motion clips (Fig. 3.1 and Fig. 3.3) and the live camera views show a box around the **moving** object
-and `Distance: N cm` (top-left), measured with the webcam only.
-
-1. On any PC: `pip install ultralytics onnx` then `python export_yolo_model.py`
-   -> creates `models/yolov8n.onnx`. Copy the `models/` folder next to `app.py` on the Pi.
-2. Open **Calibration** on the main menu, choose the object + its real size in cm,
-   place it at a measured distance, press **Calibrate now**.
-3. Re-calibrate if you change the camera, zoom or resolution.
-
-Without the model file the app falls back to the biggest moving blob (much less accurate).

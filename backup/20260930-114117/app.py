@@ -132,7 +132,7 @@ _save_timer = None                # debounce handle for persist_state_log()
 # second, so "last seen within PAGE_ACTIVE_TIMEOUT" is a reliable proxy
 # for "that tab is currently open".
 page_activity_lock = threading.Lock()
-page_last_seen = {"camera": 0.0, "buzzer": 0.0, "calibrate": 0.0}
+page_last_seen = {"camera": 0.0, "buzzer": 0.0}
 
 
 def note_page_seen(page):
@@ -325,13 +325,11 @@ def capture_frame():
 
 def record_clip_camera(seconds=RECORDING_SECONDS, fps=RECORDING_FPS):
     """Records a short video clip for Fig. 3.1 by grabbing frames for
-    seconds and writing them out with OpenCV's VideoWriter, the same way
+    `seconds` and writing them out with OpenCV's VideoWriter, the same way
     record_clip() does for Fig. 3.3 -- except this one saves into
     CAPTURE_DIR (Fig. 3.1's own directory) rather than RECORDING_DIR, so the
-    two dashboards' clips never mix. Every frame carries the tracked
-    moving object's box and 'Distance: N cm' (see distance.py) plus the
-    timestamp. Runs on the calling thread -- callers that don't want to
-    block should use record_clip_camera_async()."""
+    two dashboards' clips never mix. Runs on the calling thread -- callers
+    that don't want to block should use record_clip_camera_async()."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"motion_{timestamp}.mp4"
     filepath = os.path.join(CAPTURE_DIR, filename)
@@ -340,64 +338,59 @@ def record_clip_camera(seconds=RECORDING_SECONDS, fps=RECORDING_FPS):
         with state_lock:
             return bool(system_state.get("motion_detected"))
 
-    distance_est.hold()          # keep the distance tracker running for this clip
-    try:
-        if SIMULATE:
-            writer = cv2.VideoWriter(
-                filepath, cv2.VideoWriter_fourcc(*"mp4v"), fps, (640, 480)
-            )
-            if not writer.isOpened():
-                print("record_clip_camera: VideoWriter failed to open (simulated clip)")
-                return None
-            frame_interval = 1 / fps
-            clip_start = time.time()
-            while True:
-                loop_start = time.time()
-                sim = _simulated_frame(label="CAPTURE")
-                writer.write(stamp_timestamp(distance_est.annotate(sim)))
-                elapsed_frame = time.time() - loop_start
-                time.sleep(max(0.0, frame_interval - elapsed_frame))
-                elapsed_total = time.time() - clip_start
-                if elapsed_total >= seconds and not _motion_still_active():
-                    break
-            writer.release()
-            transcode_to_h264(filepath)
-            return filename
-
-        probe = grab_frame()
-        if probe is None:
-            return None
-        h, w = probe.shape[:2]
+    if SIMULATE:
         writer = cv2.VideoWriter(
-            filepath, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h)
+            filepath, cv2.VideoWriter_fourcc(*"mp4v"), fps, (640, 480)
         )
         if not writer.isOpened():
-            print("record_clip_camera: VideoWriter failed to open -- check OpenCV's video codec support")
+            print("record_clip_camera: VideoWriter failed to open (simulated clip)")
             return None
-        writer.write(stamp_timestamp(distance_est.annotate(probe)))
-
         frame_interval = 1 / fps
         clip_start = time.time()
         while True:
             loop_start = time.time()
-            frame = grab_frame()
-            if frame is not None:
-                writer.write(stamp_timestamp(distance_est.annotate(frame)))
+            writer.write(stamp_timestamp(_simulated_frame(label="CAPTURE")))
             elapsed_frame = time.time() - loop_start
             time.sleep(max(0.0, frame_interval - elapsed_frame))
-
             elapsed_total = time.time() - clip_start
             if elapsed_total >= seconds and not _motion_still_active():
                 break
-
         writer.release()
         transcode_to_h264(filepath)
-        if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
-            print(f"record_clip_camera: {filename} ended up empty -- something went wrong writing it")
-            return None
         return filename
-    finally:
-        distance_est.release()
+
+    probe = grab_frame()
+    if probe is None:
+        return None
+    h, w = probe.shape[:2]
+    writer = cv2.VideoWriter(
+        filepath, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h)
+    )
+    if not writer.isOpened():
+        print("record_clip_camera: VideoWriter failed to open -- check OpenCV's video codec support")
+        return None
+    writer.write(stamp_timestamp(probe))
+
+    frame_interval = 1 / fps
+    clip_start = time.time()
+    while True:
+        loop_start = time.time()
+        frame = grab_frame()
+        if frame is not None:
+            writer.write(stamp_timestamp(frame))
+        elapsed_frame = time.time() - loop_start
+        time.sleep(max(0.0, frame_interval - elapsed_frame))
+
+        elapsed_total = time.time() - clip_start
+        if elapsed_total >= seconds and not _motion_still_active():
+            break
+
+    writer.release()
+    transcode_to_h264(filepath)
+    if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+        print(f"record_clip_camera: {filename} ended up empty -- something went wrong writing it")
+        return None
+    return filename
 
 
 def record_clip_camera_async(on_done, seconds=RECORDING_SECONDS):
@@ -460,7 +453,7 @@ def transcode_to_h264(filepath):
                 pass
 
 
-def _record_clip_impl(seconds=RECORDING_SECONDS, fps=RECORDING_FPS):
+def record_clip(seconds=RECORDING_SECONDS, fps=RECORDING_FPS):
     """Records a short video clip (Fig. 3.3) by grabbing frames for `seconds`
     and writing them out with OpenCV's VideoWriter. Runs on the calling
     thread — callers that don't want to block should run this in a thread
@@ -488,7 +481,7 @@ def _record_clip_impl(seconds=RECORDING_SECONDS, fps=RECORDING_FPS):
         start = time.time()
         frame_count = 0
         while True:
-            writer.write(stamp_timestamp(distance_est.annotate(_simulated_frame(label="RECORDING"))))
+            writer.write(stamp_timestamp(_simulated_frame(label="RECORDING")))
             frame_count += 1
             time.sleep(frame_interval)
             elapsed = time.time() - start
@@ -519,7 +512,7 @@ def _record_clip_impl(seconds=RECORDING_SECONDS, fps=RECORDING_FPS):
         # would just show up black in the browser with no explanation.
         print("record_clip: VideoWriter failed to open -- check OpenCV's video codec support")
         return None
-    writer.write(stamp_timestamp(distance_est.annotate(probe)))
+    writer.write(stamp_timestamp(probe))
 
     frame_interval = 1 / fps
     clip_start = time.time()
@@ -527,7 +520,7 @@ def _record_clip_impl(seconds=RECORDING_SECONDS, fps=RECORDING_FPS):
         loop_start = time.time()
         frame = grab_frame()
         if frame is not None:
-            writer.write(stamp_timestamp(distance_est.annotate(frame)))
+            writer.write(stamp_timestamp(frame))
         elapsed_frame = time.time() - loop_start
         time.sleep(max(0.0, frame_interval - elapsed_frame))
 
@@ -541,16 +534,6 @@ def _record_clip_impl(seconds=RECORDING_SECONDS, fps=RECORDING_FPS):
         print(f"record_clip: {filename} ended up empty -- something went wrong writing it")
         return None
     return filename
-
-
-def record_clip(seconds=RECORDING_SECONDS, fps=RECORDING_FPS):
-    """Fig. 3.3 clip: same recorder as before, but every frame carries the
-    moving object's box and 'Distance: N cm' (see distance.py)."""
-    distance_est.hold()          # keep the distance tracker running for this clip
-    try:
-        return _record_clip_impl(seconds, fps)
-    finally:
-        distance_est.release()
 
 
 def record_clip_async(seconds=RECORDING_SECONDS):
@@ -585,7 +568,6 @@ def mjpeg_generator():
         if frame is None:
             time.sleep(0.5)
             continue
-        frame = distance_est.annotate(frame)
         ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
         if not ok:
             continue
@@ -724,23 +706,6 @@ def sensor_loop():
 # --------------------------------------------------------------------------
 
 app = Flask(__name__)
-
-# --- camera-only distance measurement (see distance.py) -------------------
-import distance as distance_mod
-
-
-def _latest_frame_copy():
-    with latest_frame_lock:
-        return None if latest_frame is None else latest_frame.copy()
-
-
-distance_est = distance_mod.DistanceEstimator(
-    get_frame=_latest_frame_copy,
-    is_page_active=is_page_active,
-    simulate=SIMULATE,
-    base_dir=os.path.dirname(os.path.abspath(__file__)),
-)
-app.register_blueprint(distance_mod.create_blueprint(distance_est, note_page_seen))
 
 
 @app.route("/")
@@ -936,5 +901,4 @@ def api_buzzer_test():
 if __name__ == "__main__":
     t = threading.Thread(target=sensor_loop, daemon=True)
     t.start()
-    distance_est.start()
     app.run(host="0.0.0.0", port=5000, threaded=True)
