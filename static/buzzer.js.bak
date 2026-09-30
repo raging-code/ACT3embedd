@@ -209,41 +209,6 @@ async function poll() {
 // in static/graph.js, driven by /api/events, not this file)
 // --------------------------------------------------------------------------
 
-
-// Lazily starts loading a thumbnail <video>'s metadata only once it
-// scrolls into view, instead of every clip in "View all" fetching
-// metadata the instant the list is built. Falls back to loading
-// immediately if IntersectionObserver isn't available. Also wires up a
-// tap-to-preview toggle so touch devices (which never fire
-// mouseenter/mouseleave) get the same preview behaviour as hover on
-// desktop.
-function lazyPreviewVideo(video) {
-  video.preload = "none";
-  const load = () => {
-    if (video.preload === "metadata") return;
-    video.preload = "metadata";
-  };
-  if ("IntersectionObserver" in window) {
-    const io = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.isIntersecting) {
-          load();
-          io.unobserve(video);
-        }
-      }
-    }, { rootMargin: "200px" });
-    io.observe(video);
-  } else {
-    load();
-  }
-  video.addEventListener("click", (e) => {
-    e.stopPropagation();
-    load();
-    if (video.paused) video.play().catch(() => {});
-    else { video.pause(); video.currentTime = 0.1; }
-  });
-}
-
 function recordingTimeLabelFor(filename) {
   // filenames look like motion_20260918_025309.mp4 — pull a readable time out of it
   const match = filename.match(/(\d{2})(\d{2})(\d{2})\.\w+$/);
@@ -297,7 +262,7 @@ function renderRecordingsAll() {
       const timeLabel = recordingTimeLabelFor(filename);
       return `
         <div class="gallery-all-row" data-filename="${filename}" title="${filename}">
-          <video src="/recordings/${filename}" muted loop playsinline preload="none"
+          <video src="/recordings/${filename}" muted loop playsinline preload="metadata"
                  onloadedmetadata="this.currentTime = 0.1"
                  onmouseenter="this.play()" onmouseleave="this.pause(); this.currentTime = 0.1;"></video>
           <span class="gallery-shot-time">${timeLabel}</span>
@@ -305,12 +270,7 @@ function renderRecordingsAll() {
     })
     .join("");
   el.recordingAllList.querySelectorAll(".gallery-all-row").forEach((row) => {
-    const video = row.querySelector("video");
-    if (video) lazyPreviewVideo(video);
-    row.addEventListener("click", (e) => {
-      if (e.target === video) return; // tap-to-preview handled its own click
-      openRecordingPop(row.dataset.filename);
-    });
+    row.addEventListener("click", () => openRecordingPop(row.dataset.filename));
   });
 }
 
