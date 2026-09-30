@@ -3,10 +3,11 @@
   "dimension": "height",
   "real_size_cm": 63.0,
   "real_other_cm": null,
-  "cal_aspect": 0.3174064940657343,
-  "focal_px": 772.3423603602818,
+  "cal_aspect": 0.32043065324095465,
+  "cal_face_cm": null,
+  "focal_px": 774.0062098427425,
   "cal_width": 640,
   "cal_height": 480,
   "known_distance_cm": 143.0,
-  "calibrated_at": "2026-09-30T12:12:37"
+  "calibrated_at": "2026-09-30T13:21:16"
 }
