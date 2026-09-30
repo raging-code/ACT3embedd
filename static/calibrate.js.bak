@@ -8,7 +8,7 @@
   var el = {
     clock: $("clock"), liveFrame: $("liveFrame"), liveImg: $("liveImg"), liveRes: $("liveRes"),
     modModel: $("modModel"), modModelState: $("modModelState"), dot: $("pulse-dot"),
-    classSelect: $("classSelect"), dimSelect: $("dimSelect"), sizeInput: $("sizeInput"), otherInput: $("otherInput"),
+    classSelect: $("classSelect"), dimSelect: $("dimSelect"), sizeInput: $("sizeInput"),
     saveBtn: $("saveBtn"), saveMsg: $("saveMsg"),
     distInput: $("distInput"), calBtn: $("calBtn"), calMsg: $("calMsg"),
     calStatus: $("calStatus"), resetBtn: $("resetBtn"),
@@ -85,7 +85,6 @@
         el.classSelect.value = s.class_id;
         el.dimSelect.value = s.dimension;
         el.sizeInput.value = s.real_size_cm;
-        el.otherInput.value = s.real_other_cm || "";
         if (s.known_distance_cm) el.distInput.value = s.known_distance_cm;
         renderCalStatus(s);
         renderModel(cfg);
@@ -97,8 +96,7 @@
     jsonPost("/api/calibration/settings", {
       class_id: parseInt(el.classSelect.value, 10),
       dimension: el.dimSelect.value,
-      real_size_cm: parseFloat(el.sizeInput.value),
-      real_other_cm: el.otherInput.value === "" ? null : parseFloat(el.otherInput.value)
+      real_size_cm: parseFloat(el.sizeInput.value)
     }).then(function (r) {
       if (r.ok) setMsg(el.saveMsg, "Saved.", "ok");
       else setMsg(el.saveMsg, r.data.error || "Could not save.", "fail");
@@ -160,8 +158,7 @@
     return {
       class_id: parseInt(el.classSelect.value, 10),
       dimension: el.dimSelect.value,
-      real_size_cm: parseFloat(el.sizeInput.value),
-      real_other_cm: el.otherInput.value === "" ? null : parseFloat(el.otherInput.value)
+      real_size_cm: parseFloat(el.sizeInput.value)
     };
   }
 
@@ -264,7 +261,6 @@
     } else {
       el.readValue.textContent = fmtCm(raw.distance_cm);
       el.readSub.textContent = "box " + raw.px.toFixed(0) + " px" +
-        (raw.side ? " (" + raw.side + ")" : "") +
         (raw.clipped ? " · cut off by the frame edge, unreliable" : "") +
         " · confidence " + Math.round(raw.conf * 100) + "%";
     }

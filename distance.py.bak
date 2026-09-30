@@ -72,10 +72,6 @@ DEFAULT_SETTINGS = {
     "class_id": 0,               # 0 = person
     "dimension": "height",       # which side of the box is measured
     "real_size_cm": 170.0,       # real size of that side, in cm
-    "real_other_cm": None,       # real size of the OTHER side (used when the main
-                                 # side is cut off by the frame). None = learn it
-                                 # from the box shape during calibration
-    "cal_aspect": None,          # box width/height seen during calibration
     "focal_px": None,            # learned by calibration
     "cal_width": None,           # frame size the calibration was done at
     "cal_height": None,
@@ -187,27 +183,21 @@ class DistanceEstimator:
         cid = int(data.get("class_id", self._settings["class_id"]))
         dim = str(data.get("dimension", self._settings["dimension"]))
         size = float(data.get("real_size_cm", self._settings["real_size_cm"]))
-        other = data.get("real_other_cm", self._settings["real_other_cm"])
-        other = None if other in (None, "") else float(other)
         if not 0 <= cid < len(COCO_CLASSES):
             raise ValueError("Unknown object class.")
         if dim not in ("width", "height"):
             raise ValueError("Dimension must be width or height.")
         if not 1.0 <= size <= 1000.0:
             raise ValueError("Real size must be between 1 and 1000 cm.")
-        if other is not None and not 1.0 <= other <= 1000.0:
-            raise ValueError("Other-side size must be between 1 and 1000 cm.")
         with self._lock:
-            self._settings.update(class_id=cid, dimension=dim, real_size_cm=size,
-                                  real_other_cm=other)
+            self._settings.update(class_id=cid, dimension=dim, real_size_cm=size)
             self._save_settings()
         self._reset_history()
 
     def reset_calibration(self):
         with self._lock:
             self._settings.update(focal_px=None, cal_width=None, cal_height=None,
-                                  known_distance_cm=None, calibrated_at=None,
-                                  cal_aspect=None)
+                                  known_distance_cm=None, calibrated_at=None)
             self._save_settings()
         self._reset_history()
 
@@ -332,56 +322,27 @@ class DistanceEstimator:
                 "conf": 1.0, "motion": 1.0}
 
     # ------------------------------------------------------------- measuring
-    def _raw_distance(self, px, frame_w, s, size_cm=None):
+    def _raw_distance(self, px, frame_w, s):
         f = s["focal_px"]
         if not f or px is None or px <= 1:
             return None
         if s["cal_width"]:
             f = f * frame_w / s["cal_width"]     # camera resolution changed
-        return (size_cm or s["real_size_cm"]) * f / px
-
-    @staticmethod
-    def _other_size_cm(s):
-        """Real size of the side that is NOT the main measured one, or None
-        when it is unknown (nothing typed in and not calibrated yet)."""
-        if s.get("real_other_cm"):
-            return float(s["real_other_cm"])
-        aspect = s.get("cal_aspect")              # box width / height
-        if not aspect:
-            return None
-        if s["dimension"] == "height":
-            return s["real_size_cm"] * aspect     # width  = height * (w/h)
-        return s["real_size_cm"] / aspect         # height = width  / (w/h)
+        return s["real_size_cm"] * f / px
 
     def _summary(self, det, s, w, h):
         x1, y1 = max(0.0, det["x1"]), max(0.0, det["y1"])
         x2, y2 = min(float(w), det["x2"]), min(float(h), det["y2"])
-        bw, bh = det["x2"] - det["x1"], det["y2"] - det["y1"]
-        clip_x = det["x1"] <= EDGE_MARGIN or det["x2"] >= w - EDGE_MARGIN
-        clip_y = det["y1"] <= EDGE_MARGIN or det["y2"] >= h - EDGE_MARGIN
-
-        main = s["dimension"]
-        if main == "width":
-            px, clipped, other_px, other_clipped = bw, clip_x, bh, clip_y
+        if s["dimension"] == "width":
+            px = det["x2"] - det["x1"]
+            clipped = det["x1"] <= EDGE_MARGIN or det["x2"] >= w - EDGE_MARGIN
         else:
-            px, clipped, other_px, other_clipped = bh, clip_y, bw, clip_x
-        size_cm, side = s["real_size_cm"], main
-
-        # Main side is cut off by the frame but the other side is fully
-        # visible: measure with the other side instead.
-        other_cm = self._other_size_cm(s)
-        if clipped and not other_clipped and other_cm:
-            px, size_cm = other_px, other_cm
-            side = "width" if main == "height" else "height"
-            clipped = False
-
+            px = det["y2"] - det["y1"]
+            clipped = det["y1"] <= EDGE_MARGIN or det["y2"] >= h - EDGE_MARGIN
         return {"bbox": [x1, y1, x2 - x1, y2 - y1], "px": float(px),
                 "conf": det.get("conf", 1.0), "clipped": bool(clipped),
-                "side": side,
-                "any_clipped": bool(clip_x or clip_y),
-                "aspect": float(bw / bh) if bh > 1 else None,
                 "motion": det.get("motion", 0.0),
-                "distance_cm": self._raw_distance(px, w, s, size_cm)}
+                "distance_cm": self._raw_distance(px, w, s)}
 
     @staticmethod
     def _smooth(hist, summary):
@@ -486,8 +447,6 @@ class DistanceEstimator:
             label = ("%.0f cm" % d) if d is not None else ("%.0f px" % target["px"])
             if target["clipped"]:
                 label += " (cut off)"
-            elif target.get("side") and target["side"] != s["dimension"]:
-                label += " (by %s)" % target["side"]
             (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, scale, thick)
             ly = y - 8 if y - th - 12 > 0 else y + th + 10
             self._put_text(out, label, (max(2, x), ly), scale, color, thick)
@@ -513,7 +472,7 @@ class DistanceEstimator:
                              "fallback is unreliable." % (self.model_error or "unknown error"))
 
         self._demand_until = time.time() + CALIBRATION_TIMEOUT + 3
-        samples, aspects, last_ts = [], [], 0.0
+        samples, last_ts = [], 0.0
         frame_w = frame_h = None
         deadline = time.time() + CALIBRATION_TIMEOUT
         while time.time() < deadline and len(samples) < CALIBRATION_SAMPLES:
@@ -522,11 +481,8 @@ class DistanceEstimator:
             if res and res["ts"] > last_ts and time.time() - res["ts"] < 1.0:
                 last_ts = res["ts"]
                 raw = res["raw"]
-                # only a fully visible box measured on the MAIN side counts
-                if (raw and not raw["any_clipped"] and raw["side"] == s["dimension"]
-                        and raw["aspect"]):
+                if raw and not raw["clipped"]:
                     samples.append(raw["px"])
-                    aspects.append(raw["aspect"])
                     frame_w, frame_h = res["frame_w"], res["frame_h"]
             time.sleep(0.05)
 
@@ -544,11 +500,10 @@ class DistanceEstimator:
                              "still and facing the camera, then try again." % (spread * 100))
 
         focal = median * known / s["real_size_cm"]
-        aspect = float(np.median(aspects))
         with self._lock:
             self._settings.update(
                 focal_px=focal, cal_width=frame_w, cal_height=frame_h,
-                known_distance_cm=known, cal_aspect=aspect,
+                known_distance_cm=known,
                 calibrated_at=datetime.now().isoformat(timespec="seconds"))
             self._save_settings()
         self._reset_history()

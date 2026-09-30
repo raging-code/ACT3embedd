@@ -90,11 +90,6 @@
           <label for="sizeInput">Real size of that side (cm)</label>
           <input class="cal-input" id="sizeInput" type="number" min="1" max="1000" step="0.1">
         </div>
-        <div class="cal-row">
-          <label for="otherInput">Real size of the other side (cm) - optional</label>
-          <input class="cal-input" id="otherInput" type="number" min="1" max="1000" step="0.1" placeholder="auto: learned when you calibrate">
-        </div>
-        <p class="cal-help">When you get so close that the main side is cut off by the frame, the reading switches to the other side automatically. Leave this blank to learn it from your body shape during calibration (stand full-body, arms relaxed).</p>
         <button class="cal-btn" id="saveBtn" type="button">Save target</button>
         <div class="cal-msg" id="saveMsg"></div>
       </div>
@@ -119,7 +114,7 @@
           <li>Check it: move the object to a second known distance and compare the live reading.</li>
           <li>Only one object of the chosen type in view while calibrating.</li>
           <li>Recalibrate if you change the camera, its zoom or its resolution.</li>
-          <li>A box touching the frame edge is cut off. If only one side is cut off, the reading uses the other side (label says "by width"/"by height"); if both are, it is unreliable.</li>
+          <li>A box touching the frame edge is cut off, so the reading is unreliable.</li>
         </ul>
       </div>
 
