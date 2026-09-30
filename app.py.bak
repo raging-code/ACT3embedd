@@ -31,9 +31,7 @@ from flask import Flask, jsonify, send_from_directory, render_template, Response
 # --------------------------------------------------------------------------
 
 PIR_PIN = 4                 # BCM GPIO pin connected to the PIR sensor's OUT wire
-BUZZER_PIN = 23             # BCM GPIO pin connected to the active buzzer's +/signal wire
-                             # (moved from 17 -> 23: this app now shares a Pi 5
-                             # with act4embed, whose LED is on GPIO17)
+BUZZER_PIN = 17             # BCM GPIO pin connected to the active buzzer's +/signal wire
 BUZZER_ON_SECONDS = 1.5     # how long the buzzer sounds per motion trigger
 CAMERA_INDEX = 0            # 0 = first USB webcam; try 1 or 2 if it's not found
 CAPTURE_DIR = os.path.join(os.path.dirname(__file__), "captures")
